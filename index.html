@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Defend Site-109 from the Global Occult Coalition in a top-down SCP Foundation shooter">
+  <meta name="theme-color" content="#101413">
+  <title>Site-109 Lockdown</title>
+  <link rel="stylesheet" href="css/main.css">
+  <script defer src="js/core.js"></script>
+  <script defer src="js/data.js"></script>
+  <script defer src="js/i18n.js"></script>
+  <script defer src="js/audio.js"></script>
+  <script defer src="js/input.js"></script>
+  <script defer src="js/map.js"></script>
+  <script defer src="js/game.js"></script>
+  <script defer src="js/combat.js"></script>
+  <script defer src="js/threats.js"></script>
+  <script defer src="js/art.js"></script>
+  <script defer src="js/render.js"></script>
+  <script defer src="js/ui.js"></script>
+</head>
+<body>
+  <canvas id="arena" aria-hidden="true"></canvas>
+  <div id="touch" aria-hidden="true">
+    <div class="stick stick-l"><div class="knob"></div></div>
+    <div class="stick stick-r"><div class="knob"></div></div>
+    <div class="touch-actions">
+      <button type="button" data-tb="heal" data-i18n="it_scp500"></button>
+      <button type="button" data-tb="ball" data-i18n="it_scp018"></button>
+      <button type="button" data-tb="cola" data-i18n="it_scp207"></button>
+      <button type="button" data-tb="sentry" data-i18n="it_sentry"></button>
+      <button type="button" data-tb="frag" data-i18n="it_frag"></button>
+      <button type="button" data-tb="reload" data-i18n="hint_reload"></button>
+      <button type="button" data-tb="use" data-i18n="touch_use"></button>
+      <button type="button" data-tb="swap" data-i18n="touch_swap"></button>
+      <button type="button" data-tb="dash" data-i18n="hint_dash_short"></button>
+    </div>
+  </div>
+
+  <main id="menu" class="screen menu ui-layer" aria-labelledby="main-title">
+    <div class="surveillance" aria-hidden="true"><canvas id="feed"></canvas></div>
+    <header class="masthead">
+      <div class="identity">
+        <span class="seal" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div><strong data-i18n="brand"></strong><span data-i18n="connection"></span></div>
+      </div>
+      <button type="button" class="language flat" id="language"></button>
+    </header>
+
+    <div class="hero">
+      <div class="incident"><span class="signal"></span><span data-i18n="incident"></span></div>
+      <h1 id="main-title"><span data-i18n="title_site"></span><strong data-i18n="title_main"></strong></h1>
+      <p data-i18n="tagline"></p>
+
+      <fieldset class="difficulty">
+        <legend data-i18n="diff_label"></legend>
+        <div class="threat-select">
+          <input id="safe" type="radio" name="difficulty" value="0"><label for="safe" data-i18n="diff_safe"></label>
+          <input id="euclid" type="radio" name="difficulty" value="1"><label for="euclid" data-i18n="diff_euclid"></label>
+          <input id="keter" type="radio" name="difficulty" value="2"><label for="keter" data-i18n="diff_keter"></label>
+        </div>
+        <p id="difficulty-description"></p>
+      </fieldset>
+
+      <div class="launch-actions">
+        <button type="button" class="primary" id="begin" data-i18n="menu_start"></button>
+        <button type="button" class="secondary" id="endless" data-i18n="menu_endless"></button>
+      </div>
+    </div>
+
+    <aside class="feed-label" aria-hidden="true">
+      <div><span class="signal"></span><span data-i18n="feed_live"></span></div>
+      <span data-i18n="feed_name"></span>
+    </aside>
+    <div class="site-status" aria-hidden="true">
+      <span data-i18n="hud_cells"></span>
+      <span>A <i></i> 173</span><span>B <i></i> 049</span><span>C <i></i> 106</span>
+    </div>
+
+    <footer class="menu-footer">
+      <nav aria-label="Site terminal">
+        <button type="button" class="flat" id="manual-open" data-i18n="menu_manual"></button>
+        <button type="button" class="flat" id="settings-open" data-i18n="menu_settings"></button>
+        <button type="button" class="flat" id="credits-open" data-i18n="menu_credits"></button>
+      </nav>
+      <div class="record"><span data-i18n="best"></span> <b id="best"></b></div>
+      <span class="motto" data-i18n="title_sub"></span>
+    </footer>
+  </main>
+
+  <div id="hud" class="ui-layer" hidden>
+    <div class="hud-top">
+      <div class="wave-block">
+        <div><span data-i18n="hud_wave"></span><strong id="hud-wave"></strong></div>
+        <div><span data-i18n="hud_hostiles"></span><strong id="hud-hostiles"></strong></div>
+      </div>
+      <div class="containment">
+        <span class="hud-label" data-i18n="hud_cells"></span>
+        <div id="hud-cells"></div>
+      </div>
+      <div class="hud-right">
+        <div class="requisition"><span class="hud-label" data-i18n="hud_req"></span><strong id="hud-credits"></strong></div>
+        <button type="button" class="flat pause-button" id="pause-open" data-i18n="pause_title_button"></button>
+      </div>
+    </div>
+    <figure class="radar">
+      <figcaption data-i18n="hud_map"></figcaption>
+      <canvas id="radar" width="250" height="188" aria-hidden="true"></canvas>
+    </figure>
+    <div id="boss" class="boss" hidden>
+      <div><span data-i18n="boss_tag"></span><strong id="boss-name"></strong></div>
+      <div class="meter"><i id="boss-meter"></i></div>
+    </div>
+    <div id="banner" class="banner" hidden><strong id="banner-title"></strong><span id="banner-sub"></span></div>
+    <div id="notifications" aria-live="polite"></div>
+    <div id="interaction" hidden><span id="interaction-label"></span><div class="meter"><i id="interaction-meter"></i></div></div>
+
+    <div class="hud-bottom">
+      <section class="vitals">
+        <span class="callsign" data-i18n="hud_callsign"></span>
+        <div class="vital">
+          <span data-i18n="hud_hp"></span><div class="meter"><i id="hp-meter"></i></div><strong id="hp-value"></strong>
+        </div>
+        <div class="vital armor">
+          <span data-i18n="hud_armor"></span><div class="meter"><i id="armor-meter"></i></div><strong id="armor-value"></strong>
+        </div>
+        <div class="vital dash">
+          <span data-i18n="hint_dash_short"></span><div class="meter"><i id="dash-meter"></i></div>
+        </div>
+      </section>
+      <div class="hud-center">
+        <div id="radio" class="radio" aria-live="polite" hidden>
+          <span id="radio-from"></span><p id="radio-message"></p>
+        </div>
+        <div id="hints" class="hints"></div>
+      </div>
+      <section class="equipment">
+        <span id="active-weapon" class="hud-label"></span>
+        <div class="rounds"><strong id="mag"></strong><span id="reserve"></span></div>
+        <div id="weapon-status"></div>
+        <div class="meter weapon-meter"><i id="weapon-meter"></i></div>
+        <div id="items"></div>
+      </section>
+    </div>
+  </div>
+
+  <section id="brief" class="screen overlay ui-layer" aria-labelledby="brief-title" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <div><p class="eyebrow" data-i18n="brief_clear"></p><h2 id="brief-title" data-i18n="brief_tag"></h2></div>
+        <span class="file-number" data-i18n="brief_id"></span>
+      </header>
+      <div class="prose">
+        <p data-i18n="brief_p1"></p><p data-i18n="brief_p2"></p><p id="brief-mode"></p>
+        <h3 data-i18n="brief_obj"></h3>
+        <ul><li id="brief-objective"></li><li data-i18n="brief_o2"></li><li data-i18n="brief_o3"></li></ul>
+      </div>
+      <footer class="sheet-footer">
+        <button type="button" id="brief-back" class="flat" data-i18n="brief_back"></button>
+        <button type="button" id="deploy" class="primary" data-i18n="brief_deploy"></button>
+      </footer>
+    </div>
+  </section>
+
+  <section id="manual" class="screen overlay ui-layer" aria-labelledby="manual-title" hidden>
+    <div class="sheet wide">
+      <header class="sheet-header"><h2 id="manual-title" data-i18n="man_title"></h2><button type="button" class="flat" data-close="manual" data-i18n="close"></button></header>
+      <div id="manual-tabs" class="tab-strip" role="group" aria-labelledby="manual-title"></div>
+      <div class="prose" id="manual-content"></div>
+    </div>
+  </section>
+
+  <section id="settings" class="screen overlay ui-layer" aria-labelledby="settings-title" hidden>
+    <div class="sheet">
+      <header class="sheet-header"><h2 id="settings-title" data-i18n="set_title"></h2><button type="button" class="flat" data-close="settings" data-i18n="close"></button></header>
+      <div class="settings-grid">
+        <label for="master" data-i18n="set_master"></label><input id="master" data-setting="master" type="range" min="0" max="1" step=".05">
+        <label for="music" data-i18n="set_music"></label><input id="music" data-setting="music" type="range" min="0" max="1" step=".05">
+        <label for="sfx" data-i18n="set_sfx"></label><input id="sfx" data-setting="sfx" type="range" min="0" max="1" step=".05">
+        <label for="shake" data-i18n="set_shake"></label><input id="shake" data-setting="shake" type="range" min="0" max="1" step=".05">
+        <label for="dmgNums" data-i18n="set_dmg"></label><input id="dmgNums" data-setting="dmgNums" type="checkbox">
+        <label for="tutorial" data-i18n="set_hints"></label><input id="tutorial" data-setting="hints" type="checkbox">
+        <label for="set-language" data-i18n="set_lang"></label>
+        <select id="set-language"><option value="en">English</option><option value="zh">简体中文</option></select>
+      </div>
+    </div>
+  </section>
+
+  <section id="credits" class="screen overlay ui-layer" aria-labelledby="credits-title" hidden>
+    <div class="sheet">
+      <header class="sheet-header"><h2 id="credits-title" data-i18n="cr_title"></h2><button type="button" class="flat" data-close="credits" data-i18n="close"></button></header>
+      <div class="prose">
+        <p data-i18n="cr_body"></p><p data-i18n="cr_lic"></p>
+        <ul class="sources">
+          <li><a href="https://scp-wiki.wikidot.com/scp-173" target="_blank" rel="noopener">SCP-173</a> · Moto42</li>
+          <li><a href="https://scp-wiki.wikidot.com/scp-049" target="_blank" rel="noopener">SCP-049</a> · Gabriel Jade &amp; djkaktus</li>
+          <li><a href="https://scp-wiki.wikidot.com/scp-106" target="_blank" rel="noopener">SCP-106</a> · Dr Gears</li>
+          <li><a href="https://scp-wiki.wikidot.com/scp-018" target="_blank" rel="noopener">SCP-018</a> · Epic Phail Spy</li>
+          <li><a href="https://scp-wiki.wikidot.com/scp-207" target="_blank" rel="noopener">SCP-207</a> · Aeish</li>
+          <li><a href="https://scp-wiki.wikidot.com/scp-500" target="_blank" rel="noopener">SCP-500</a> · snorlison</li>
+          <li><a href="https://scp-wiki.wikidot.com/goc-hub-page" target="_blank" rel="noopener" data-i18n="source_goc"></a> · <span data-i18n="source_community"></span></li>
+          <li><a href="https://scp-wiki.wikidot.com/task-forces#nu-7" target="_blank" rel="noopener">Nu-7 Hammer Down</a> · <span data-i18n="source_community"></span></li>
+        </ul>
+        <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="pause" class="screen overlay ui-layer" aria-labelledby="pause-title" hidden>
+    <div class="sheet compact">
+      <header class="sheet-header"><h2 id="pause-title" data-i18n="pause_title"></h2></header>
+      <div class="stack">
+        <button type="button" class="primary" id="resume" data-i18n="pause_resume"></button>
+        <button type="button" class="secondary" id="pause-settings" data-i18n="set_title"></button>
+        <button type="button" class="flat" id="abandon" data-i18n="pause_abandon"></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="armory" class="screen overlay ui-layer" aria-labelledby="armory-title" hidden>
+    <div class="sheet wide">
+      <header class="sheet-header">
+        <div><p class="eyebrow" id="arm-cleared"></p><h2 id="armory-title" data-i18n="arm_title"></h2></div>
+        <div class="balance"><span data-i18n="hud_req"></span><strong id="arm-credits"></strong></div>
+      </header>
+      <div id="arm-stats" class="stats arm-stats"></div>
+      <div id="arm-tabs" class="tab-strip" role="group" aria-labelledby="armory-title"></div>
+      <div id="arm-items" class="catalogue"></div>
+      <footer class="sheet-footer">
+        <div id="arm-loadout"></div>
+        <button type="button" id="next" class="primary" data-i18n="arm_next"></button>
+      </footer>
+    </div>
+  </section>
+
+  <section id="report" class="screen overlay ui-layer" aria-labelledby="result" hidden>
+    <div class="sheet">
+      <header class="sheet-header"><div><p class="eyebrow" data-i18n="end_class"></p><h2 id="result"></h2></div><span class="record-tag" id="new-record" data-i18n="end_best"></span></header>
+      <div class="prose"><p id="result-story"></p><p id="result-endless"></p><div id="result-stats" class="stats"></div></div>
+      <footer class="sheet-footer report-actions">
+        <button type="button" id="report-menu" class="flat" data-i18n="end_menu"></button>
+        <button type="button" id="retry" class="secondary" data-i18n="end_retry"></button>
+        <button type="button" id="continue" class="primary" data-i18n="end_continue"></button>
+      </footer>
+    </div>
+  </section>
+
+  <noscript>Enable JavaScript to play Site-109 Lockdown</noscript>
+</body>
+</html>
