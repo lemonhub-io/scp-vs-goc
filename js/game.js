@@ -3,13 +3,15 @@
 G.Operation = class {
   constructor(endless, difficulty) {
     this.endless = endless;
+    G.map.reset();
+    G.fx.reset();
     this.diff = G.DIFFS[difficulty] || G.DIFFS[1];
     this.cells = G.map.cells.map(cell => ({ ...cell, hp: 100, charge: null }));
     this.lockers = G.map.lockers.map(locker => ({ ...locker, cd: 0 }));
     this.up = { dmg: 0, reload: 0, hp: 0, armor: 0, dash: 0, ammo: 0 };
     this.inventory = { frag: 3, scp500: 1, scp018: 0, scp207: 0, sentry: 0 };
     this.player = {
-      ...G.map.start, r: 14, angle: -Math.PI / 2, hp: 100, armor: 50, weapon: 1,
+      ...G.map.start, r: 13, angle: -Math.PI / 2, hp: 100, armor: 50, weapon: 1, kick: 0, bloom: 0,
       arms: G.WEAPONS.map((w, i) => ({ owned: i < 2, mag: w.mag, reserve: w.reserve, cd: 0, reload: 0 })),
       dash: 0, dashTime: 0, dashAngle: 0, invulnerable: 0, cola: 0, step: 0, flash: 0, hit: 0,
     };
@@ -27,8 +29,17 @@ G.Operation = class {
     this.devices = [];
     this.drops = [];
     this.effects = [];
-    this.decals = [];
+    this.marks = [];
     this.notes = [];
+    this.combo = 0;
+    this.comboT = 0;
+    this.best = 0;
+    this.alarm = 0;
+    this.kickX = 0;
+    this.kickY = 0;
+    this.hitstop = 0;
+    this.ending = 0;
+    this.result = null;
     this.radioQueue = [];
     this.nextWave();
   }
@@ -38,14 +49,16 @@ G.Operation = class {
   get intact() { return this.cells.filter(c => c.hp > 0).length; }
   get accuracy() { return this.shots ? Math.round(this.hits / this.shots * 100) : 0; }
   get hostiles() { return this.queue.length + this.enemies.filter(e => !e.dead).length; }
+  get mult() { return 1 + Math.min(3, Math.floor(this.combo / 5) * 0.5); }
 
   reserveLimit(i) { return Math.round(G.WEAPONS[i].reserve * (1 + this.up.ammo * 0.25)); }
 
   nextWave() {
     this.wave++;
     this.phase = 'combat';
-    this.result = null;
+    this.clearIn = 0;
     this.waveTime = 0;
+    this.marks.length = 0;
     this.waveKills = this.kills;
     this.waveShots = this.shots;
     this.waveHits = this.hits;
@@ -95,7 +108,7 @@ G.Operation = class {
 
   damage(amount, x, y) {
     const p = this.player;
-    if (this.phase !== 'combat' || p.invulnerable > 0 || p.hp <= 0) return;
+    if (this.phase !== 'combat' || this.result || p.invulnerable > 0 || p.hp <= 0) return;
     amount *= this.diff.dmg;
     const absorbed = Math.min(p.armor, amount * 0.65);
     p.armor -= absorbed;
@@ -104,10 +117,16 @@ G.Operation = class {
     p.invulnerable = 0.21;
     p.hit = 0.45;
     p.hurtAngle = Math.atan2(y - p.y, x - p.x);
-    this.shake = Math.max(this.shake, 0.22);
-    this.sparks(p.x, p.y, absorbed ? '#87cbd3' : '#ff7054');
+    this.shake = Math.max(this.shake, Math.min(0.75, 0.3 + amount / 80));
+    const away = p.hurtAngle + Math.PI;
+    if (absorbed) G.fx.sparks(p.x, p.y, '#8ec8ff', 6, 220, away, 0.8);
+    if (remaining > 0.5) G.fx.blood(p.x, p.y, away, Math.min(12, 3 + remaining / 4));
     G.audio.play('hurt');
-    if (!p.hp) this.finish('kia');
+    if (!p.hp) {
+      G.fx.blood(p.x, p.y, away, 22, '#8e1f1c', 260);
+      G.fx.pool(p.x, p.y, 22);
+      this.finish('kia');
+    }
     else if (p.hp < 30 && !p.warned) {
       p.warned = true;
       this.notify('alert_lowhp', {}, 'danger');
@@ -116,9 +135,10 @@ G.Operation = class {
   }
 
   finish(result) {
-    if (this.phase === 'finished') return;
+    if (this.result) return;
     this.result = result;
-    this.phase = 'finished';
+    this.ending = result === 'win' ? 1.6 : 2.1;
+    this.banner = { title: 'end_' + result, subtitle: 'end_' + result + '_d', vars: {}, until: this.time + 9, end: true };
     G.audio.siren(false);
     G.audio.setMusic(0);
     G.audio.play(result === 'win' ? 'victory' : 'gameover', { ui: true });
@@ -126,7 +146,8 @@ G.Operation = class {
 
   clearWave() {
     this.projectiles.length = 0;
-    this.devices.length = 0;
+    this.devices = this.devices.filter(d => d.type !== 'frag');
+    this.marks.length = 0;
     const bonus = Math.round((145 + this.wave * 29 + this.intact * 32) * this.diff.reward);
     this.credits += bonus;
     this.score += Math.round((350 + this.intact * 130) * this.diff.score);
@@ -189,7 +210,9 @@ G.Operation = class {
       case 'repair': {
         const c = this.cells[entry.cell];
         if (!c.hp) {
-          this.anomalies = this.anomalies.filter(a => a.cell !== c);
+          this.anomalies = this.anomalies.filter(a => a.cell.index !== c.index);
+          this.enemies = this.enemies.filter(e => e.type !== 'zombie' || e.from !== c.index);
+          G.map.setDoor(c.index, true);
           this.notify('alert_recontain', { s: c.scp });
         }
         c.hp = Math.min(100, c.hp + 50);
@@ -201,9 +224,30 @@ G.Operation = class {
   }
 
   update(dt, input) {
+    if (this.hitstop > 0) { this.hitstop -= dt; return; }
+    if (this.ending > 0) {
+      this.ending -= dt;
+      dt *= 0.35;
+      if (this.ending <= 0) { this.phase = 'finished'; return; }
+    }
     this.time += dt;
     this.waveTime += dt;
     const p = this.player;
+    const settle = Math.exp(-14 * dt);
+    this.kickX *= settle;
+    this.kickY *= settle;
+    this.comboT -= dt;
+    if (this.comboT <= 0) this.combo = 0;
+    const danger = this.cells.some(c => c.charge) || this.anomalies.some(a => !(a.dormant > 0));
+    this.alarm = G.approach(this.alarm, danger ? 1 : 0, dt * 0.8);
+    G.fx.update(dt);
+    for (const f of this.effects) {
+      f.life -= dt;
+      if (f.vx !== undefined) { f.x += f.vx * dt; f.y += f.vy * dt; }
+    }
+    this.effects = this.effects.filter(f => f.life > 0);
+    for (const m of this.marks) m.life -= dt;
+    this.marks = this.marks.filter(m => m.life > 0);
     G.audio.listener.x = p.x;
     G.audio.listener.y = p.y;
     this.shake = Math.max(0, this.shake - dt * 0.85);
@@ -213,12 +257,16 @@ G.Operation = class {
       G.audio.play('radio', { ui: true });
     }
     this.notes = this.notes.filter(n => n.until > this.time);
-    this.updatePlayer(dt, input);
-    this.updateInteract(dt, input);
+    if (p.hp > 0 && p.hp < this.healthLimit * 0.3 && !this.result) {
+      this.beatT = (this.beatT || 0) - dt;
+      if (this.beatT <= 0) { this.beatT = 0.95; G.audio.play('heartbeat', { ui: true, vol: 0.8 }); }
+    }
+    if (p.hp > 0) this.updatePlayer(dt, input);
+    if (!this.result) this.updateInteract(dt, input);
     if (this.phase !== 'combat') return;
 
     this.spawnIn -= dt;
-    if (this.spawnIn <= 0 && this.queue.length && this.enemies.length < 35) {
+    if (!this.result && this.spawnIn <= 0 && this.queue.length && this.enemies.length < 32) {
       const type = this.queue.shift();
       this.spawn(type, G.pick(G.map.entries[G.pick(this.def.spawns)]), {
         elite: !G.ENEMY[type].boss && G.chance(this.def.elite || 0),
@@ -231,18 +279,24 @@ G.Operation = class {
     this.updateDevices(dt);
     this.updateDrops(dt);
     this.enemies = this.enemies.filter(e => !e.dead);
-    for (const f of this.effects) {
-      f.life -= dt;
-      if (f.vx !== undefined) { f.x += f.vx * dt; f.y += f.vy * dt; }
-    }
-    this.effects = this.effects.filter(f => f.life > 0);
-    if (this.phase === 'combat' && !this.hostiles && !this.cells.some(c => c.charge)) this.clearWave();
+    if (!this.result && !this.hostiles && !this.cells.some(c => c.charge)) {
+      if (!this.clearIn) {
+        this.clearIn = 1.9;
+        if (this.endless || this.wave !== G.FINAL_WAVE) {
+          this.banner = { title: 'wave_clear', subtitle: 'wave_clear_sub', vars: {}, until: this.time + 1.8 };
+          this.radio('c_site', 'com_clear');
+        }
+        G.audio.setMusic(1);
+      } else if ((this.clearIn -= dt) <= 0) this.clearWave();
+    } else this.clearIn = 0;
   }
 
   updatePlayer(dt, input) {
     const p = this.player;
     p.angle = Math.atan2(input.aimY - p.y, input.aimX - p.x);
     for (const timer of ['dash', 'dashTime', 'invulnerable', 'cola', 'flash', 'hit']) p[timer] = Math.max(0, p[timer] - dt);
+    p.kick = Math.max(0, p.kick - dt * 9);
+    p.bloom = Math.max(0, p.bloom - dt * 0.35);
     for (const [i, arm] of p.arms.entries()) {
       if (!arm.owned) continue;
       const w = G.WEAPONS[i];
@@ -268,6 +322,7 @@ G.Operation = class {
       p.dashTime = 0.17;
       p.invulnerable = Math.max(p.invulnerable, 0.23);
       p.dashAngle = move > 0.05 ? Math.atan2(input.my, input.mx) : p.angle;
+      G.fx.dust(p.x, p.y, 5);
       G.audio.play('dash');
     }
     const speed = 232 * (w.moveMul || 1) * (p.cola ? 1.38 : 1);
@@ -278,6 +333,7 @@ G.Operation = class {
       G.map.move(p, input.mx / norm * speed * dt, input.my / norm * speed * dt);
     }
     p.step += Math.min(1, move) * dt * 12;
+    if (move > 0.2) p.bloom = Math.min(0.09, p.bloom + dt * 0.05);
     if (input.reload) this.reload(w, arm);
     if (input.fire && !arm.cd && !arm.reload && !p.dashTime) {
       if (arm.mag >= 1) this.fire(w, arm);
@@ -342,9 +398,16 @@ G.Operation = class {
     this.notify('alert_breach', { s: cell.scp }, 'danger');
     this.radio('c_site', 'com_' + cell.scp);
     if (this.intact === 1) this.radio('c_o5', 'com_lost2');
-    this.anomalies.push({ kind: cell.anomaly, cell, x: cell.x, y: cell.padY - 7, r: 17, angle: -Math.PI / 2,
-      health: 530, dormant: 0, cd: 0.75 });
-    this.fx('ring', cell.x, cell.padY - 7, { color: '#ff664e', radius: 170, duration: 1.35 });
+    G.map.setDoor(cell.index, false);
+    this.anomalies.push({ kind: cell.anomaly, cell, x: cell.x, y: cell.y, r: 15, angle: -Math.PI / 2,
+      health: 560, dormant: 0, cd: 1.2, step: 0, hop: 0 });
+    const dy = 34 * G.map.tile + 16;
+    G.fx.debris(cell.x, dy, 26, '#3d4550', 420);
+    G.fx.dust(cell.x, dy, 14, '#6d7278');
+    G.fx.light(cell.x, dy, 320, '#ff7a3d', 0.8, 1.2);
+    this.shake = Math.max(this.shake, 0.8);
+    G.audio.play('clang', { x: cell.x, y: dy });
+    this.fx('ring', cell.x, dy, { color: '#ff7a3d', radius: 170, duration: 1.1, bright: true });
     if (!this.intact) this.finish('lost');
   }
 };

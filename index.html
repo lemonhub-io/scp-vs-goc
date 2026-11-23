@@ -6,6 +6,9 @@
   <meta name="description" content="Defend Site-109 from the Global Occult Coalition in a top-down SCP Foundation shooter">
   <meta name="theme-color" content="#101413">
   <title>Site-109 Lockdown</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="css/main.css">
   <script defer src="js/core.js"></script>
   <script defer src="js/data.js"></script>
@@ -13,6 +16,7 @@
   <script defer src="js/audio.js"></script>
   <script defer src="js/input.js"></script>
   <script defer src="js/map.js"></script>
+  <script defer src="js/fx.js"></script>
   <script defer src="js/game.js"></script>
   <script defer src="js/combat.js"></script>
   <script defer src="js/threats.js"></script>
@@ -39,7 +43,7 @@
   </div>
 
   <main id="menu" class="screen menu ui-layer" aria-labelledby="main-title">
-    <div class="surveillance" aria-hidden="true"><canvas id="feed"></canvas></div>
+    <div class="surveillance" aria-hidden="true"></div>
     <header class="masthead">
       <div class="identity">
         <span class="seal" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -100,6 +104,8 @@
         <div id="hud-cells"></div>
       </div>
       <div class="hud-right">
+        <div class="requisition score"><span class="hud-label" data-i18n="hud_score"></span><strong id="hud-score"></strong></div>
+        <span id="hud-combo" class="combo" hidden></span>
         <div class="requisition"><span class="hud-label" data-i18n="hud_req"></span><strong id="hud-credits"></strong></div>
         <button type="button" class="flat pause-button" id="pause-open" data-i18n="pause_title_button"></button>
       </div>
@@ -136,6 +142,7 @@
         <div id="hints" class="hints"></div>
       </div>
       <section class="equipment">
+        <div id="slots" class="slots"></div>
         <span id="active-weapon" class="hud-label"></span>
         <div class="rounds"><strong id="mag"></strong><span id="reserve"></span></div>
         <div id="weapon-status"></div>

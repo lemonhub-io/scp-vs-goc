@@ -15,7 +15,7 @@
   let selectedEndless = false, settingsFrom = 'menu', manualTab = 'controls', category = 'weapons';
   let record = G.store.get('records', {}) || {};
   let newBest = false;
-  let lastNotes = '', lastItems = '', lastHints = '', lastRadio = '';
+  let lastNotes = '', lastItems = '', lastHints = '', lastRadio = '', lastSlots = '';
   const selectRecord = (endless, difficulty) => (endless ? 'endless_' : 'operation_') + difficulty;
 
   function node(tag, value, className) {
@@ -90,6 +90,8 @@
 
   function returnToMenu() {
     run = null;
+    G.map.reset();
+    G.fx.reset();
     G.audio.siren(false);
     G.audio.setMusic(0);
     show('menu', 'begin');
@@ -144,7 +146,7 @@
     }
     const cards = node('div', null, 'manual-cards');
     const keys = manualTab === 'hostiles'
-      ? Object.keys(G.ENEMY).filter(key => key !== 'pylon').map(key => 'h_' + key)
+      ? Object.keys(G.ENEMY).filter(key => key !== 'pylon' && key !== 'zombie').map(key => 'h_' + key)
       : ['173', '049', '106', '500', '018', '207'].map(key => 'an_' + key);
     for (const key of keys) {
       const article = node('article', null, 'manual-card');
@@ -233,6 +235,19 @@
     text('hud-wave', s.endless ? G.pad(s.wave) : G.pad(s.wave) + ' / ' + G.FINAL_WAVE);
     text('hud-hostiles', G.pad(s.hostiles));
     text('hud-credits', G.fmt(s.credits));
+    text('hud-score', G.fmt(s.score));
+    const combo = $('hud-combo');
+    combo.hidden = s.mult <= 1;
+    if (s.mult > 1) text('hud-combo', 'x' + s.mult.toFixed(1));
+    const slots = p.arms.map((a, i) => (a.owned ? (i === p.weapon ? 2 : 1) : 0)).join('');
+    if (slots !== lastSlots) {
+      lastSlots = slots;
+      $('slots').replaceChildren(...p.arms.map((a, i) => {
+        const el = node('span', String(i + 1));
+        el.dataset.state = a.owned ? (i === p.weapon ? 'on' : 'owned') : 'none';
+        return el;
+      }));
+    }
     for (const [i, c] of s.cells.entries()) {
       const { block, readout, fill } = monitors[i];
       const value = c.charge ? c.label + ' ' + c.charge.fuse.toFixed(1) : c.label + '  ' + c.scp;
@@ -248,6 +263,8 @@
       meter($('boss-meter'), boss.hp / boss.max);
     }
     $('banner').hidden = G.state !== 'play' || !s.banner || s.banner.until <= s.time;
+    $('banner').classList.toggle('end', !!(s.banner && s.banner.end));
+    $('banner').classList.toggle('clear', !!(s.banner && s.banner.title === 'wave_clear'));
     if (!$('banner').hidden) {
       text('banner-title', t(s.banner.title, s.banner.vars));
       text('banner-sub', t(s.banner.subtitle, s.banner.vars));
@@ -275,11 +292,19 @@
         return line;
       }));
     }
-    const items = Object.entries(s.inventory).filter(([, n]) => n > 0).map(([key, n]) => [t('it_' + key), n]);
-    cache = JSON.stringify(items);
+    const pad = G.input.usingPad, touch = G.input.touch;
+    const caps = { frag: pad ? 'LT' : 'G', scp500: pad ? 'Y' : 'Q', scp018: pad ? '◀' : 'F', scp207: pad ? '▶' : 'C', sentry: pad ? '▼' : 'X' };
+    const items = Object.entries(s.inventory).map(([key, n]) => [key, t('it_' + key), n]);
+    cache = JSON.stringify(items) + pad + touch;
     if (cache !== lastItems) {
       lastItems = cache;
-      $('items').replaceChildren(...items.map(([label, count]) => node('span', label + ' ' + count, 'item-chip')));
+      $('items').replaceChildren(...items.map(([key, label, count]) => {
+        const chip = node('span', null, 'item-chip');
+        if (!count) chip.dataset.empty = '';
+        if (!touch) chip.append(node('kbd', caps[key]));
+        chip.append(document.createTextNode(label), node('b', String(count)));
+        return chip;
+      }));
     }
 
     const msg = s.message && s.message.until > s.time ? s.message : null;
@@ -419,13 +444,14 @@
         } else updateHud();
       }
       G.renderer.frame(run, input, G.state === 'play' ? dt : 0);
-    }
+    } else G.renderer.attract(dt);
     G.input.endFrame();
     window.requestAnimationFrame(frame);
   }
 
+  Object.defineProperty(G, 'run', { get: () => run });
+  G.show = show;
   G.input.setupTouch();
-  G.drawSurveillance($('feed'));
   show('menu');
   window.requestAnimationFrame(frame);
 })();

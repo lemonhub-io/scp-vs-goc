@@ -34,6 +34,7 @@ G.ENEMY = {
   exo: { hp: 3400, speed: 50, r: 34, reward: 450, score: 6000, boss: true },
   archon: { hp: 4400, speed: 70, r: 24, reward: 600, score: 9000, boss: true },
   pylon: { hp: 280, speed: 0, r: 16, reward: 20, score: 300 },
+  zombie: { hp: 70, speed: 104, r: 13, reward: 4, score: 60 },
 };
 
 /* Scripted operation, waves 1 to 10 */

@@ -3,17 +3,28 @@
 Object.assign(G.Operation.prototype, {
   mark(shot) {
     if (shot && !shot.hit) { shot.hit = true; this.hits++; }
-    if (shot) this.hitMarker = this.time + 0.16;
+    if (shot) this.hitMarker = this.time + 0.14;
+  },
+
+  sparks(x, y, color, count = 6, speed = 160) {
+    G.fx.sparks(x, y, color, count, speed * 1.6);
+  },
+
+  popup(x, y, text, color, big) {
+    this.fx('number', x, y, { vy: -38, vx: G.rand(-12, 12), text, color, big, duration: big ? 0.9 : 0.6 });
   },
 
   strike(e, damage, x, y, piercing = false, knock = 0) {
     if (e.dead) return false;
+    const angle = Math.atan2(e.y - y, e.x - x);
     if (e.kind === 'scp106') {
       if (e.dormant) return false;
       e.health -= damage;
+      G.fx.blood(e.x, e.y, angle, 3, '#1a110c');
       if (e.health <= 0) {
         e.dormant = 12;
-        e.health = 530;
+        e.health = 560;
+        G.fx.corrosion(e.x, e.y, 40);
         this.fx('ring', e.x, e.y, { radius: 104, color: '#88677b', duration: 0.8 });
         G.audio.play('growl', e);
       }
@@ -21,42 +32,61 @@ Object.assign(G.Operation.prototype, {
     }
     const relative = Math.abs(G.angDiff(e.angle, Math.atan2(y - e.y, x - e.x)));
     if (e.warded || (e.type === 'shield' && !piercing && relative < 1.13)) {
-      this.sparks(e.x, e.y, '#81ddff', 5);
+      const hx = e.x + Math.cos(angle + Math.PI) * (e.r + 4), hy = e.y + Math.sin(angle + Math.PI) * (e.r + 4);
+      G.fx.sparks(hx, hy, '#8ae6ff', 5, 240, angle + Math.PI, 0.9);
       G.audio.play('shield', e);
       return false;
     }
-    if (e.type === 'exo' && relative > 2.28) damage *= 2;
+    let weak = false;
+    if (e.type === 'exo' && relative > 2.28) { damage *= 2; weak = true; }
     if (e.ward > 0 && !piercing) damage *= 0.55;
     e.hp -= damage;
-    e.hit = 0.13;
-    const angle = Math.atan2(e.y - y, e.x - x);
+    e.hit = 0.11;
     if (knock && !e.boss) G.map.move(e, Math.cos(angle) * knock * 0.045, Math.sin(angle) * knock * 0.045, e.type === 'drone');
-    if (G.settings.dmgNums) this.fx('number', e.x, e.y - e.r - 5, { vy: -31, vx: 0, text: Math.round(damage), duration: 0.58 });
-    this.sparks(e.x, e.y, '#fa8269', 4);
+    if (G.settings.dmgNums) this.popup(e.x + G.rand(-6, 6), e.y - e.r - 8, Math.round(damage), weak ? '#ffb070' : '#f2efe4', weak || damage >= 100);
+    const metal = e.type === 'drone' || e.type === 'exo' || e.type === 'pylon';
+    if (metal) G.fx.sparks(e.x, e.y, e.type === 'pylon' ? '#8ae6ff' : '#ffd27a', 5, 260, angle, 0.9);
+    else G.fx.blood(e.x, e.y, angle, 4, e.type === 'zombie' ? '#3d4a1c' : e.type === 'adept' || e.type === 'archon' ? '#3a6fd8' : '#8e1f1c');
     G.audio.play('hit', e);
-    if (e.hp <= 0) this.kill(e);
+    if (e.hp <= 0) this.kill(e, angle);
     return true;
   },
 
-  kill(e) {
+  kill(e, angle = e.angle + Math.PI) {
     if (e.dead) return;
     e.dead = true;
     const def = G.ENEMY[e.type];
     if (def && e.type !== 'pylon') {
       this.kills++;
+      this.combo++;
+      this.comboT = 3.2;
+      this.best = Math.max(this.best, this.combo);
       this.credits += Math.round(def.reward * this.diff.reward * (e.elite ? 1.4 : 1));
-      this.score += Math.round(def.score * this.diff.score * (e.elite ? 1.4 : 1));
-      if (!e.boss && G.chance(0.28)) this.drops.push({ x: e.x, y: e.y, kind: G.pick(['ammo', 'ammo', 'plate', 'med']), life: 22 });
+      const pts = Math.round(def.score * this.diff.score * (e.elite ? 1.4 : 1) * this.mult);
+      this.score += pts;
+      this.fx('text', e.x, e.y - e.r - 20, { vy: -26, vx: 0, text: '+' + pts, color: this.mult > 1 ? '#ffb547' : '#c9d1d8', duration: 0.9 });
+      if (!e.boss && G.chance(0.26)) this.drops.push({ x: e.x, y: e.y, kind: G.pick(['ammo', 'ammo', 'plate', 'med']), life: 20 });
+      this.killMarker = this.time + 0.14;
+      this.hitMarker = this.time + 0.14;
     }
-    if (e.type !== 'drone' && e.type !== 'pylon') {
-      this.decals.push({ x: e.x, y: e.y, angle: e.angle, r: e.r });
-      if (this.decals.length > 84) this.decals.shift();
+    if (e.type === 'drone' || e.type === 'pylon') {
+      G.fx.explosion(e.x, e.y, e.type === 'pylon' ? 40 : 30);
+      G.audio.play('smallboom', e);
+    } else if (e.type !== 'exo' && e.type !== 'archon') {
+      const blood = e.type === 'zombie' ? 'rgba(40,52,22,0.55)' : e.type === 'adept' ? 'rgba(40,80,170,0.45)' : 'rgba(92,16,16,0.55)';
+      G.fx.pool(e.x, e.y, e.r * 1.4, blood);
+      G.fx.stamp(c => G.art.corpse(c, { ...e, angle: angle }));
+      G.fx.blood(e.x, e.y, angle, 10, e.type === 'zombie' ? '#3d4a1c' : '#8e1f1c', 240);
     }
-    this.sparks(e.x, e.y, e.type === 'pylon' ? '#ba8dff' : '#ee7860', e.boss ? 36 : 8, e.boss ? 400 : 160);
+    if (e.elite) this.hitstop = Math.max(this.hitstop, 0.04);
     if (e.boss) {
-      this.fx('ring', e.x, e.y, { radius: 190, color: '#ff825e', duration: 0.8 });
+      this.hitstop = 0.22;
+      this.shake = 1;
+      for (let i = 0; i < 6; i++) G.fx.explosion(e.x + G.rand(-40, 40), e.y + G.rand(-40, 40), G.rand(40, 80));
+      this.fx('ring', e.x, e.y, { radius: 260, color: '#ff9a4a', duration: 1, bright: true });
       this.radio('c_site', 'com_boss_down');
       G.audio.play('explosion', e);
+      G.fx.scorch(e.x, e.y, 90);
     } else G.audio.play('kill', { ...e, vol: 0.5 });
     if (e.type === 'pylon') {
       const archon = this.enemies.find(other => other.type === 'archon' && !other.dead);
@@ -79,7 +109,12 @@ Object.assign(G.Operation.prototype, {
     slot.cd = 1 / (w.rate * (p.cola ? 1.32 : 1));
     this.shots++;
     p.flash = 0.075;
-    this.shake = Math.max(this.shake, w.shake);
+    p.kick = 1;
+    this.shake = Math.max(this.shake, w.shake * 1.4);
+    this.kickX -= Math.cos(p.angle) * w.recoil * 0.9;
+    this.kickY -= Math.sin(p.angle) * w.recoil * 0.9;
+    G.fx.muzzle(x, y, p.angle, w.type === 'tesla' ? '#9fe8ff' : w.type === 'rail' ? '#ffb36b' : '#ffd9a0', w.id === 'b12' || w.type === 'rail' ? 1.4 : w.id === 'p9' ? 0.8 : 1);
+    if (!w.type) G.fx.casing(p.x + Math.cos(p.angle) * 8, p.y + Math.sin(p.angle) * 8, p.angle, w.id === 'b12');
     G.audio.play(w.sound);
     if (w.type === 'tesla') {
       const seen = this.targets().filter(e => G.dist(x, y, e.x, e.y) <= w.range &&
@@ -106,8 +141,10 @@ Object.assign(G.Operation.prototype, {
       }
       this.fx('beam', x, y, { tx: ex, ty: ey, color: w.color, duration: 0.26 });
     } else {
+      const spread = w.spread + (w.pellets > 1 ? 0 : p.bloom);
+      p.bloom = Math.min(0.12, p.bloom + w.recoil * 0.006);
       for (let n = 0; n < w.pellets; n++) {
-        const a = p.angle + G.rand(-w.spread, w.spread);
+        const a = p.angle + G.rand(-spread, spread);
         this.bullet(x, y, a, w.speed, damage, 'player', { shot, knock: w.knock, color: w.color, falloff: w.falloff, len: w.len });
       }
     }
@@ -125,9 +162,9 @@ Object.assign(G.Operation.prototype, {
       b.life -= dt;
       if (b.homing) b.angle = G.turnTo(b.angle, Math.atan2(p.y - b.y, p.x - b.x), b.homing * dt);
       const tx = b.x + Math.cos(b.angle) * b.speed * dt, ty = b.y + Math.sin(b.angle) * b.speed * dt;
-      const wall = G.map.trace(b.x, b.y, tx, ty);
+      const wall = b.lob ? 1 : G.map.trace(b.x, b.y, tx, ty);
       let limit = wall, target = null;
-      const targets = b.team === 'hostile' ? [p] : this.targets();
+      const targets = b.lob ? [] : b.team === 'hostile' ? (p.hp > 0 ? [p] : []) : this.targets();
       for (const e of targets) {
         const t = G.segCircle(b.x, b.y, tx, ty, e.x, e.y, e.r + (b.homing ? 3 : 0));
         if (t >= 0 && t < limit) { limit = t; target = e; }
@@ -144,7 +181,11 @@ Object.assign(G.Operation.prototype, {
             if (b.shot) G.audio.play('hitmarker', { ui: true });
           }
         } else if (wall < 1) {
-          this.sparks(x, y, b.color, 3);
+          const back = b.angle + Math.PI;
+          G.fx.sparks(x, y, b.homing ? b.color : '#ffd27a', b.homing ? 8 : 4, 200, back, 1.1);
+          G.fx.dust(x - Math.cos(b.angle) * 3, y - Math.sin(b.angle) * 3, 2);
+          G.fx.hole(x - Math.cos(b.angle) * 4, y - Math.sin(b.angle) * 4);
+          if (b.homing) G.fx.light(x, y, 90, b.color, 0.2, 0.8);
           G.audio.play('ricochet', { x, y, vol: 0.4 });
         }
       } else {
@@ -169,10 +210,10 @@ Object.assign(G.Operation.prototype, {
     if (d < radius && G.map.trace(x, y, p.x, p.y) === 1) {
       this.damage(damage * (1 - 0.55 * d / radius) * (team === 'hostile' ? 1 : 0.24), x, y);
     }
-    this.shake = Math.max(this.shake, 0.5 / (1 + d / 450));
-    this.fx('ring', x, y, { radius, color: '#ff9e62', bright: true, duration: 0.49 });
-    this.sparks(x, y, '#ffb279', 22, radius * 2.3);
-    G.audio.play('explosion', { x, y });
+    this.shake = Math.max(this.shake, Math.min(1, 0.9 / (1 + d / 380)));
+    this.fx('ring', x, y, { radius: radius * 1.1, color: '#ffb070', bright: true, duration: 0.45 });
+    G.fx.explosion(x, y, radius * 0.55);
+    G.audio.play(radius > 80 ? 'explosion' : 'smallboom', { x, y });
   },
 
   useItems(input) {
@@ -181,13 +222,16 @@ Object.assign(G.Operation.prototype, {
       p.hp = this.healthLimit;
       p.warned = false;
       bag.scp500--;
-      this.fx('ring', p.x, p.y, { radius: 75, color: '#92e0ae', duration: 0.48 });
+      this.fx('ring', p.x, p.y, { radius: 75, color: '#7ee0a0', duration: 0.48, bright: true });
+      G.fx.light(p.x, p.y, 200, '#7ee0a0', 0.6, 1);
+      for (let i = 0; i < 14; i++) G.fx.add({ t: 'ember', x: p.x + G.rand(-14, 14), y: p.y + G.rand(-14, 14), vx: G.rand(-30, 30), vy: G.rand(-50, -10), life: G.rand(0.5, 1), size: 1.6, drag: 1, color: '#7ee0a0' });
       G.audio.play('pill');
     }
     if (input.cola && bag.scp207 && !p.cola && p.hp > 8) {
       p.cola = 10;
       p.hp -= 8;
       bag.scp207--;
+      this.fx('ring', p.x, p.y, { radius: 60, color: '#ff4a57', duration: 0.4, bright: true });
       G.audio.play('can');
     }
     for (const [pressed, type, duration, speed] of [[input.grenade, 'frag', 0.88, 520], [input.ball, 'scp018', 7.5, 430]]) {
@@ -219,7 +263,9 @@ Object.assign(G.Operation.prototype, {
         const aim = Math.atan2(e.y - d.y, e.x - d.x);
         d.angle = G.turnTo(d.angle, aim, dt * 8);
         if (d.cd <= 0 && Math.abs(G.angDiff(d.angle, aim)) < 0.16) {
-          this.bullet(d.x, d.y, d.angle, 1350, 23, 'sentry', { color: '#a5f5cd' });
+          const mx = d.x + Math.cos(d.angle) * 18, my = d.y + Math.sin(d.angle) * 18;
+          this.bullet(mx, my, d.angle + G.rand(-0.04, 0.04), 1350, 23, 'sentry', { color: '#ffd27a' });
+          G.fx.muzzle(mx, my, d.angle, '#ffd27a', 0.7);
           d.cd = 0.16;
           G.audio.play('rifle', { x: d.x, y: d.y, vol: 0.32 });
         }
@@ -237,7 +283,9 @@ Object.assign(G.Operation.prototype, {
         if (bounce) G.audio.play('bounce', d);
         continue;
       }
+      if (d.bounce > 1 && Math.random() < 0.5) G.fx.add({ t: 'ember', x: d.x, y: d.y, vx: 0, vy: 0, life: 0.25, size: 2.2, color: '#ff3a3a' });
       if (bounce) {
+        G.fx.sparks(d.x, d.y, '#ff8a7a', 4, 200);
         d.bounce++;
         const mult = Math.min(1.21, 1050 / Math.hypot(d.vx, d.vy));
         d.vx *= mult;
@@ -261,7 +309,13 @@ Object.assign(G.Operation.prototype, {
     this.drops = this.drops.filter(d => {
       d.life -= dt;
       if (d.life <= 0) return false;
-      if (G.dist2(d.x, d.y, p.x, p.y) > 26 ** 2) return true;
+      const dist = G.dist(d.x, d.y, p.x, p.y);
+      if (dist < 120 && dist > 1) {
+        const pull = (1 - dist / 120) * 520 * dt;
+        d.x += (p.x - d.x) / dist * pull;
+        d.y += (p.y - d.y) / dist * pull;
+      }
+      if (dist > 26) return true;
       if (d.kind === 'ammo') {
         if (!p.arms.some((a, i) => a.owned && a.reserve < this.reserveLimit(i))) return true;
         this.resupply(0.12);
