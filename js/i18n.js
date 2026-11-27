@@ -609,6 +609,9 @@ G.applyI18n = function (root) {
 };
 
 Object.assign(G.STR.en, {
+  pwa_install: 'Install game', pwa_update: 'Update game',
+  pwa_preparing: 'Downloading game for offline play', pwa_ready: 'Ready to play offline',
+  pwa_unavailable: 'Offline download unavailable', pwa_ios: 'To install choose Add to Home Screen from the Share menu',
   brand: 'SCP Foundation', connection: 'SCiPNET secure terminal',
   incident: 'Containment emergency', feed_live: 'Live surveillance', feed_name: 'Containment access',
   hud_map: 'Site radar', pause_title_button: 'Pause', hint_dash_short: 'Dash',
@@ -624,6 +627,9 @@ Object.assign(G.STR.en, {
 });
 
 Object.assign(G.STR.zh, {
+  pwa_install: '安装游戏', pwa_update: '更新游戏',
+  pwa_preparing: '正在下载离线游戏', pwa_ready: '已可离线游玩',
+  pwa_unavailable: '离线资源下载不可用', pwa_ios: '安装游戏请在分享菜单中选择添加到主屏幕',
   brand: 'SCP 基金会', connection: 'SCiPNET 安全终端',
   incident: '收容紧急事态', feed_live: '实时监控', feed_name: '收容区入口',
   hud_map: '站点雷达', pause_title_button: '暂停', hint_dash_short: '冲刺',

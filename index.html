@@ -4,15 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Defend Site-109 from the Global Occult Coalition in a top-down SCP Foundation shooter">
-  <meta name="theme-color" content="#101413">
+  <meta name="theme-color" content="#0b0e11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Site-109">
   <title>Site-109 Lockdown</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icons/seal.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/main.css">
   <script defer src="js/core.js"></script>
   <script defer src="js/data.js"></script>
   <script defer src="js/i18n.js"></script>
+  <script defer src="js/pwa.js"></script>
   <script defer src="js/audio.js"></script>
   <script defer src="js/input.js"></script>
   <script defer src="js/map.js"></script>
@@ -87,6 +92,8 @@
         <button type="button" class="flat" id="manual-open" data-i18n="menu_manual"></button>
         <button type="button" class="flat" id="settings-open" data-i18n="menu_settings"></button>
         <button type="button" class="flat" id="credits-open" data-i18n="menu_credits"></button>
+        <button type="button" class="flat" id="install-game" data-i18n="pwa_install" hidden></button>
+        <button type="button" class="flat" id="update-game" data-i18n="pwa_update" hidden></button>
       </nav>
       <div class="record"><span data-i18n="best"></span> <b id="best"></b></div>
       <span class="motto" data-i18n="title_sub"></span>
@@ -190,6 +197,10 @@
         <label for="tutorial" data-i18n="set_hints"></label><input id="tutorial" data-setting="hints" type="checkbox">
         <label for="set-language" data-i18n="set_lang"></label>
         <select id="set-language"><option value="en">English</option><option value="zh">简体中文</option></select>
+      </div>
+      <div class="pwa-settings" hidden>
+        <p id="offline-status" role="status" data-i18n="pwa_preparing"></p>
+        <p id="ios-install" data-i18n="pwa_ios" hidden></p>
       </div>
     </div>
   </section>
