@@ -26,7 +26,7 @@ Sappers plant demolition charges on the blast doors. Two detonations breach a ce
 
 Plain scripts sharing one `G` namespace, loaded in order from `index.html`:
 `core` `data` `i18n` `audio` `input` `map` `fx` `game` `combat` `threats` `art` `render` `ui`.
-Game art and sound are generated at runtime.
+Game art and sound are generated at runtime except for the bundled official SCP Foundation logo.
 
 For static hosting, deploy the whole directory together. The manifest and service worker use relative paths so the game can also live under a project subdirectory. When releasing changes to cached assets, bump the release in `sw.js` and add any new runtime files to its asset list.
 
@@ -35,3 +35,5 @@ For static hosting, deploy the whole directory together. The manifest and servic
 Based on the SCP Foundation (scp-wiki.wikidot.com), licensed under CC BY-SA 3.0. This project is released under the same license.
 
 The bundled Latin fonts use the SIL Open Font License 1.1. [Chakra Petch license](fonts/chakra-petch/OFL.txt) · [IBM Plex Mono license](fonts/ibm-plex-mono/OFL.txt)
+
+The menu emblem, floor marking, favicon, Apple touch icon and PWA icons use the official SCP Foundation logo listed in [Foundation Iconography](https://scp-wiki.wikidot.com/art:foundation-icons). Original logo by **far2 and Aelanna**; vector by **Dr_Grom and anqxyr**, derived from `logo_250.png`, licensed under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). [Original SVG](https://o5command-int.wdfiles.com/local--files/tech-team:graphic-templates/scp-logo.svg). The bundled `icons/seal.svg` preserves the official path geometry with editor metadata removed; display variants only adjust color, size and padding. Raster icons include a white background and safe padding for launcher masks.

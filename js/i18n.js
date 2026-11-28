@@ -281,6 +281,8 @@ G.STR = {
     end_class: 'Report',
 
     cr_title: 'Credits',
+    cr_logo: 'The menu emblem and floor marking use the official SCP Foundation logo from the SCP Wiki as do the website and PWA icons Original logo by far2 and Aelanna Vector by Dr_Grom and anqxyr CC BY-SA 3.0 Adapted only for color size and icon padding',
+    source_logo: 'SCP Foundation logo source and attribution',
     cr_body: 'Design, code, art and sound by the Site-109 team. All visuals and audio are generated procedurally at runtime.',
     cr_lic: 'Based on the SCP Foundation, created by the SCP Wiki community at scp-wiki.wikidot.com and licensed under CC BY-SA 3.0. SCP-173, SCP-049, SCP-106, SCP-500, SCP-018, SCP-207, the Global Occult Coalition and Mobile Task Force Nu-7 originate from that shared universe. This game is released under the same license.',
 
@@ -576,6 +578,8 @@ G.STR = {
     end_class: '报告',
 
     cr_title: '致谢',
+    cr_logo: '主菜单徽标与场地标记以及网站和 PWA 图标统一采用 SCP Wiki 收录的官方 SCP 基金会标志 原作 far2 与 Aelanna 矢量版 Dr_Grom 与 anqxyr 采用 CC BY-SA 3.0 授权 仅调整颜色尺寸及图标留白',
+    source_logo: 'SCP 基金会标志来源与署名',
     cr_body: 'Site-109 团队负责设计、代码、美术与音效。所有画面与声音均在运行时程序化生成。',
     cr_lic: '本作基于 SCP 基金会，由 SCP Wiki 社区（scp-wiki.wikidot.com）创作，采用 CC BY-SA 3.0 授权。SCP-173、SCP-049、SCP-106、SCP-500、SCP-018、SCP-207、全球超自然联盟与机动特遣队 Nu-7 均来自这一共享宇宙。本游戏以相同协议发布。',
 

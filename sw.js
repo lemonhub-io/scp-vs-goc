@@ -3,14 +3,14 @@
 // Bump the release whenever a cached file changes. Keep each installation isolated by scope.
 const scope = self.registration.scope;
 const prefix = 'site109-offline:' + encodeURIComponent(scope) + ':';
-const cacheName = prefix + '1';
+const cacheName = prefix + '2';
 const entry = new URL('index.html', scope).href;
 const assets = new Set([
   'index.html', 'manifest.webmanifest', 'css/main.css',
   'js/core.js', 'js/data.js', 'js/i18n.js', 'js/pwa.js', 'js/audio.js', 'js/input.js',
   'js/map.js', 'js/fx.js', 'js/game.js', 'js/combat.js', 'js/threats.js',
   'js/art.js', 'js/render.js', 'js/ui.js',
-  'icons/seal.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'icons/seal.svg', 'icons/favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'fonts/chakra-petch/500.woff2', 'fonts/chakra-petch/600.woff2', 'fonts/chakra-petch/700.woff2',
   'fonts/ibm-plex-mono/400.woff2', 'fonts/ibm-plex-mono/500.woff2', 'fonts/ibm-plex-mono/600.woff2',
 ].map(path => new URL(path, scope).href));

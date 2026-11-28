@@ -318,30 +318,34 @@ G.map = (function () {
     g.restore();
   }
 
-  M.drawLogo = function (g, cx, cy, R, col, lw) {
+  // Official SCP Wiki vector shared with the masthead and app icons
+  const foundationLogo = new Image();
+  let logoStamp = null;
+  M.drawLogo = function (g, cx, cy, R) {
+    if (!logoStamp) return;
     g.save();
-    g.translate(cx, cy);
-    g.strokeStyle = col; g.fillStyle = col;
-    g.lineWidth = lw || R * 0.12;
-    g.beginPath(); g.arc(0, 0, R, 0, G.TAU); g.stroke();
-    g.lineWidth = (lw || R * 0.12) * 0.7;
-    g.beginPath(); g.arc(0, 0, R * 0.42, 0, G.TAU); g.stroke();
-    for (let k = 0; k < 3; k++) {
-      g.save();
-      g.rotate(-Math.PI / 2 + (k * G.TAU) / 3);
-      g.beginPath();
-      g.moveTo(R * 0.98, -R * 0.11);
-      g.lineTo(R * 0.72, -R * 0.11);
-      g.lineTo(R * 0.72, -R * 0.24);
-      g.lineTo(R * 0.5, 0);
-      g.lineTo(R * 0.72, R * 0.24);
-      g.lineTo(R * 0.72, R * 0.11);
-      g.lineTo(R * 0.98, R * 0.11);
-      g.closePath(); g.fill();
-      g.restore();
-    }
+    g.globalAlpha = 0.075;
+    g.drawImage(logoStamp, cx - R, cy - R, R * 2, R * 2);
     g.restore();
   };
+  foundationLogo.onload = () => {
+    logoStamp = document.createElement('canvas');
+    logoStamp.width = logoStamp.height = 256;
+    const stamp = logoStamp.getContext('2d');
+    stamp.drawImage(foundationLogo, 0, 0, 256, 256);
+    stamp.globalCompositeOperation = 'source-in';
+    stamp.fillStyle = '#fff';
+    stamp.fillRect(0, 0, 256, 256);
+    // The floor can be baked before the image finishes loading
+    if (M.floorCanvas) {
+      const g = M.floorCanvas.getContext('2d');
+      g.save();
+      g.scale(M.FS, M.FS);
+      M.drawLogo(g, 32 * T, 20 * T, 82);
+      g.restore();
+    }
+  };
+  foundationLogo.src = 'icons/seal.svg';
 
   function drawProp(g, p, rnd) {
     const x = p.x * T, y = p.y * T, w = p.w * T, h = p.h * T;
@@ -483,7 +487,7 @@ G.map = (function () {
     g.fillStyle = '#2a2f36'; g.fillRect(29 * T + 6, 1 * T + 2, 6 * T - 12, T - 6);
     g.fillStyle = '#353b44'; g.fillRect(29 * T + 10, 1 * T + 6, 3 * T - 12, T - 14); g.fillRect(32 * T + 2, 1 * T + 6, 3 * T - 12, T - 14);
     // logo
-    M.drawLogo(g, 32 * T, 20 * T, 82, 'rgba(255,255,255,0.075)');
+    M.drawLogo(g, 32 * T, 20 * T, 82);
     // wall ambient occlusion
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (tiles[idx(x, y)] === 1) continue;
