@@ -4,7 +4,9 @@ A top-down shooter set in the SCP Foundation universe. Global Occult Coalition s
 
 ## Play
 
-Play the [hosted game](https://site109.github.io/site109/) in a modern browser. For a local copy, run `npm ci` and `npm run build`, then open `dist/index.html` or serve `dist` over HTTP. Installation and service worker caching require HTTPS or localhost.
+Download the static game ZIP from [GitHub Releases](https://github.com/Site109/site109/releases). Extract it and serve that directory over HTTP or HTTPS. For local play, run `python3 -m http.server 8000 --bind 127.0.0.1` in the extracted directory and open [localhost:8000](http://localhost:8000/).
+
+The existing [Pages site](https://site109.github.io/site109/) remains online as an earlier snapshot. New builds ship through Releases.
 
 - WASD move, mouse aim, left click fire
 - Space dash, R reload, 1 to 6 or wheel switch weapons
@@ -16,7 +18,7 @@ Play the [hosted game](https://site109.github.io/site109/) in a modern browser. 
 
 Open the game over HTTPS or on localhost. Once Settings shows **Ready to play offline** you can disconnect and launch either game mode. Use **Install game** in the main menu when offered. On iPhone or iPad open the Share menu and choose **Add to Home Screen**.
 
-New releases download in the background. Choose **Update game** in the main menu to switch immediately, or close all game windows to let the update take effect on the next launch.
+When your host serves a newer build, installed copies download it in the background. Choose **Update game** in the main menu to switch immediately, or close all game windows to let the update take effect on the next launch.
 
 ## Rules
 
@@ -35,7 +37,9 @@ Game modules live in `src/` and static assets with stable URLs live in `public/`
 
 Game art and sound are generated at runtime except for the bundled official SCP Foundation logo.
 
-GitHub Actions publishes `dist` to GitHub Pages on pushes to `main`. The build uses relative URLs, so the same output works at the root or under a project subdirectory. Vite writes the service worker with the completed build's asset list and derives a cache version from the files, including the worker source.
+The runtime entry point in `src/main.ts` mounts input, rendering, UI and offline support through one application lifecycle. Each game owns its combat, threat and tactics systems.
+
+A pushed version tag matching `package.json` builds and attaches `site109-<tag>.zip` to a GitHub Release. `dist` and the ZIP are build outputs and are not tracked in Git. Vite uses relative URLs for subdirectory hosting and generates the service worker's cache manifest from each build.
 
 ## License
 

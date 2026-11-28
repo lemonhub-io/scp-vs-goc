@@ -13,11 +13,7 @@ export const audio = (() => {
   let verbSend: GainNode, noiseBuf: AudioBuffer;
   let last: Partial<Record<string, number>> = {};
   const STARTUP_WINDOW = 250;
-  // iPad can present a desktop Safari user agent even in a Home Screen app.
-  const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const homeScreen = navigator.standalone === true ||
-    (appleMobile && window.matchMedia('(display-mode: standalone)').matches);
+  let homeScreen = false;
   let resumeAt = -Infinity;
   let pendingSounds: { name: string; opts: SoundOptions; at: number }[] = [];
   let outputCheck = 0, rebuildOnInput = false, primeAt = -Infinity;
@@ -155,23 +151,37 @@ export const audio = (() => {
     init(true);
   }
 
-  for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
-    document.addEventListener(type, unlockOnInput, { capture: true, passive: true });
-  }
-  document.addEventListener('touchend', unlockOnInput, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      pendingSounds = [];
-      clearTimeout(outputCheck);
-      outputCheck = 0;
-      if (ctx && ctx.state !== 'closed') ctx.suspend().catch(() => {});
-      setPlaybackSession(false);
-    } else {
-      // Request resume even if the earlier suspend is still taking effect.
-      resume(true);
+  function attach(signal: AbortSignal) {
+    // iPad can present a desktop Safari user agent even in a Home Screen app.
+    const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    homeScreen = navigator.standalone === true ||
+      (appleMobile && window.matchMedia('(display-mode: standalone)').matches);
+
+    for (const type of ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend']) {
+      document.addEventListener(type, unlockOnInput, { capture: true, passive: true, signal });
     }
-  });
-  window.addEventListener('pageshow', () => resume());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        pendingSounds = [];
+        clearTimeout(outputCheck);
+        outputCheck = 0;
+        if (ctx && ctx.state !== 'closed') ctx.suspend().catch(() => {});
+        setPlaybackSession(false);
+      } else {
+        // Request resume even if the earlier suspend is still taking effect.
+        resume(true);
+      }
+    }, { signal });
+    window.addEventListener('pageshow', () => resume(), { signal });
+    signal.addEventListener('abort', () => {
+      pendingSounds = [];
+      window.clearInterval(musicTimer);
+      musicTimer = undefined;
+      setPlaybackSession(false);
+      replaceContext();
+    }, { once: true });
+  }
 
   /* building blocks */
   function out(ctx: AudioContext, dest: GainNode, pan: number, vol: number, wet: boolean): GainNode {
@@ -427,5 +437,5 @@ export const audio = (() => {
     }
   }
 
-  return { listener, init, setVolumes, play, siren: setSiren, setMusic };
+  return { listener, attach, init, setVolumes, play, siren: setSiren, setMusic };
 })();

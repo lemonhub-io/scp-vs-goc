@@ -17,13 +17,6 @@ function offlineBuild() {
   return {
     name: 'site109-offline',
     apply: 'build',
-    // Vite loads ESM during development. The single production IIFE also runs from file://.
-    transformIndexHtml: {
-      order: 'post',
-      handler(html) {
-        return html.replace(/<script type="module"(?: crossorigin)? src="([^"]+)"><\/script>/, '<script defer src="$1"></script>');
-      },
-    },
     async writeBundle({ dir }) {
       const source = await readFile(new URL('./src/worker/sw.ts', import.meta.url), 'utf8');
       const paths = (await listFiles(dir)).filter(path => path !== 'sw.js').sort();
@@ -50,7 +43,6 @@ export default defineConfig({
   build: {
     target: 'es2020',
     modulePreload: false,
-    rolldownOptions: { output: { format: 'iife', codeSplitting: false } },
   },
   plugins: [offlineBuild()],
 });

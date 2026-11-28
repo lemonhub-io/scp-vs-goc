@@ -122,9 +122,11 @@ export interface Settings {
   hints: boolean;
 }
 
+const defaults: Settings = { master: 0.8, music: 0.55, sfx: 0.85, shake: 1, dmgNums: true, lang: 'en', difficulty: 1, hints: true };
+
 function loadSettings(): Settings {
   const lang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
-  const result: Settings = { master: 0.8, music: 0.55, sfx: 0.85, shake: 1, dmgNums: true, lang, difficulty: 1, hints: true };
+  const result: Settings = { ...defaults, lang };
   const stored = store.get('settings', null);
   if (!stored || typeof stored !== 'object') return result;
   const saved = stored as Record<string, unknown>;
@@ -140,7 +142,8 @@ function loadSettings(): Settings {
   return result;
 }
 
-export const settings = loadSettings();
+export const settings = { ...defaults };
+export const restoreSettings = () => Object.assign(settings, loadSettings());
 export const saveSettings = () => store.set('settings', settings);
 
 export const fmt = (n: number) => Math.floor(n).toLocaleString('en-US').replace(/,/g, ' ');

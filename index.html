@@ -254,5 +254,12 @@
   </section>
 
   <noscript>Enable JavaScript to play Site-109 Lockdown</noscript>
+  <p id="server-required" hidden>Serve this game over HTTP or HTTPS to play</p>
+  <script>
+    if (location.protocol === 'file:') {
+      document.getElementById('menu').hidden = true;
+      document.getElementById('server-required').hidden = false;
+    }
+  </script>
 </body>
 </html>

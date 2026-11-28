@@ -42,6 +42,7 @@ export interface SiteMap {
   fieldDir(field: Float32Array, x: number, y: number, large: boolean): (Point & { v: number }) | null;
   fieldValue(field: Float32Array, x: number, y: number): number;
   randomFloorNear(x: number, y: number, rmin: number, rmax: number, needLos?: boolean): Point | null;
+  loadArtwork(signal: AbortSignal): void;
   drawLogo(g: CanvasRenderingContext2D, cx: number, cy: number, radius: number): void;
   renderFloor(): HTMLCanvasElement;
   drawWalls(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number): void;
@@ -372,7 +373,6 @@ export const map: SiteMap = (() => {
   }
 
   // Official SCP Wiki vector shared with the masthead and app icons
-  const foundationLogo = new Image();
   let logoStamp: HTMLCanvasElement | null = null;
   const drawLogo: SiteMap['drawLogo'] = function (g, cx, cy, R) {
     if (!logoStamp) return;
@@ -381,22 +381,26 @@ export const map: SiteMap = (() => {
     g.drawImage(logoStamp, cx - R, cy - R, R * 2, R * 2);
     g.restore();
   };
-  foundationLogo.onload = () => {
-    logoStamp = document.createElement('canvas');
-    logoStamp.width = logoStamp.height = 256;
-    const stamp = core.canvasContext(logoStamp);
-    stamp.drawImage(foundationLogo, 0, 0, 256, 256);
-    stamp.globalCompositeOperation = 'source-in';
-    stamp.fillStyle = '#fff';
-    stamp.fillRect(0, 0, 256, 256);
-    // The floor can be baked before the image finishes loading
-    if (M.floorCanvas) {
-      const g = core.canvasContext(M.floorCanvas);
-      g.save();
-      g.scale(M.FS, M.FS);
-      M.drawLogo(g, 32 * T, 20 * T, 82);
-      g.restore();
-    }
+  const loadArtwork: SiteMap['loadArtwork'] = signal => {
+    const foundationLogo = new Image();
+    foundationLogo.addEventListener('load', () => {
+      logoStamp = document.createElement('canvas');
+      logoStamp.width = logoStamp.height = 256;
+      const stamp = core.canvasContext(logoStamp);
+      stamp.drawImage(foundationLogo, 0, 0, 256, 256);
+      stamp.globalCompositeOperation = 'source-in';
+      stamp.fillStyle = '#fff';
+      stamp.fillRect(0, 0, 256, 256);
+      // The floor can be baked before the image finishes loading
+      if (M.floorCanvas) {
+        const g = core.canvasContext(M.floorCanvas);
+        g.save();
+        g.scale(M.FS, M.FS);
+        M.drawLogo(g, 32 * T, 20 * T, 82);
+        g.restore();
+      }
+    }, { once: true, signal });
+    foundationLogo.src = new URL('icons/seal.svg', document.baseURI).href;
   };
 
   function drawProp(g: CanvasRenderingContext2D, p: MapProp, rnd: () => number) {
@@ -747,10 +751,9 @@ export const map: SiteMap = (() => {
     dirty: false, leds: [], FS: 1.5, miniScale: 3, floorCanvas: null, miniCanvas: null,
     hatchSrc: null, hatch: null, wallRuns: [], wallEdges: [],
     setDoor, reset, tileAt, solid, opaque, solidAt, opaqueAt, collide, raycast, los,
-    visPoly, large, field, fieldDir, fieldValue, randomFloorNear, drawLogo, renderFloor,
+    visPoly, large, field, fieldDir, fieldValue, randomFloorNear, loadArtwork, drawLogo, renderFloor,
     drawWalls, renderMini, bakeLamps, open, trace, move, routeCost, direction,
   };
   M.reset();
-  foundationLogo.src = 'icons/seal.svg';
   return M;
 })();

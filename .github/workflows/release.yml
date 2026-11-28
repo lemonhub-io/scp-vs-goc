@@ -1,0 +1,34 @@
+name: Release Site-109
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check version
+        run: node -e "if ('v' + require('./package.json').version !== process.env.GITHUB_REF_NAME) throw new Error('Tag must match package version')"
+      - run: npm ci
+      - run: npm run build
+      - name: Publish release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="$RUNNER_TEMP/site109-$GITHUB_REF_NAME.zip"
+          (cd dist && zip -qr "$archive" .)
+          gh release create "$GITHUB_REF_NAME" "$archive#Static game ZIP" \
+            --verify-tag --title "Site-109 $GITHUB_REF_NAME" --notes-file public/PLAY.md

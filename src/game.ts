@@ -1,3 +1,6 @@
+import { CombatSystem } from './combat';
+import { EnemyTactics } from './enemy-ai';
+import { ThreatSystem } from './threats';
 import { audio } from './audio';
 import * as core from './core';
 import type { Point } from './core';
@@ -10,6 +13,9 @@ import { map as siteMap } from './map';
 import type { Anomaly, Arm, Banner, Contact, ContainmentCell, Device, Drop, Effect, EffectSpec, Enemy, GroundMark, Interaction, Locker, Note, Outcome, Phase, Player, Projectile, RadioLine, Threat, TranslationVars } from './simulation';
 
 export class Operation {
+  readonly combat = new CombatSystem(this);
+  readonly tactics = new EnemyTactics(this);
+  readonly threats = new ThreatSystem(this);
   readonly diff: Difficulty;
   readonly cells: ContainmentCell[];
   readonly lockers: Locker[];
@@ -135,12 +141,6 @@ export class Operation {
     this.effects.push({ ...options, x, y, life: duration, duration });
   }
 
-  sparks(x: number, y: number, color: string, count = 6, speed = 135) {
-    for (let i = 0; i < count; i++) {
-      const a = core.rand(core.TAU), v = core.rand(speed * 0.2, speed);
-      this.fx(x, y, { type: 'spark', color, vx: Math.cos(a) * v, vy: Math.sin(a) * v, duration: core.rand(0.16, 0.52) });
-    }
-  }
 
   damage(amount: number, x: number, y: number) {
     const p = this.player;
@@ -304,17 +304,17 @@ export class Operation {
     this.spawnIn -= dt;
     if (!this.result && this.spawnIn <= 0 && this.queue.length && this.enemies.length < 32) {
       const type = this.queue.shift()!;
-      this.spawn(type, core.pick(siteMap.entries[core.pick(this.def.spawns)]), {
+      this.threats.spawn(type, core.pick(siteMap.entries[core.pick(this.def.spawns)]), {
         elite: !data.ENEMY[type].boss && core.chance(this.def.elite || 0),
       });
       this.spawnIn = Math.max(0.35, 1.04 - this.wave * 0.052);
     }
-    this.updateEnemyIntelligence();
-    for (const e of this.enemies) if (!e.dead) this.updateEnemy(e, dt);
-    for (const a of this.anomalies) this.updateAnomaly(a, dt);
-    this.updateProjectiles(dt);
-    this.updateDevices(dt);
-    this.updateDrops(dt);
+    this.tactics.updateEnemyIntelligence();
+    for (const e of this.enemies) if (!e.dead) this.threats.updateEnemy(e, dt);
+    for (const a of this.anomalies) this.threats.updateAnomaly(a, dt);
+    this.combat.updateProjectiles(dt);
+    this.combat.updateDevices(dt);
+    this.combat.updateDrops(dt);
     this.enemies = this.enemies.filter(e => !e.dead);
     if (!this.result && !this.hostiles && !this.cells.some(c => c.charge)) {
       if (!this.clearIn) {
@@ -376,10 +376,10 @@ export class Operation {
     if (move > 0.2) p.bloom = Math.min(0.09, p.bloom + dt * 0.05);
     if (input.reload) this.reload(w, arm);
     if (input.fire && !arm.cd && !arm.reload && !p.dashTime) {
-      if (arm.mag >= 1) this.fire(w, arm);
+      if (arm.mag >= 1) this.combat.fire(w, arm);
       else this.reload(w, arm);
     }
-    this.useItems(input);
+    this.combat.useItems(input);
   }
 
   reload(w: Weapon, arm: Arm) {
@@ -410,7 +410,7 @@ export class Operation {
       charge.fuse -= dt;
       if (charge.fuse <= 0) {
         c.charge = null;
-        this.explode(charge.x, charge.y, 94, 56, 'hostile');
+        this.combat.explode(charge.x, charge.y, 94, 56, 'hostile');
         c.hp = Math.max(0, c.hp - this.diff.charge);
         if (c.hp) this.notify('alert_cellhit', { c: c.label }, 'danger');
         else this.breach(c);

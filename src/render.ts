@@ -5,19 +5,16 @@ import type { Point } from './core';
 import * as data from './data';
 import { fx as effects } from './fx';
 import type { Operation } from './game';
-import { input as controls } from './input';
-import type { InputSnapshot } from './input';
+import type { InputSnapshot, InputState } from './input';
 import { map as siteMap } from './map';
-import { session } from './session';
+import type { RuntimeSession } from './session';
 import type { ContainmentCell, Player } from './simulation';
 
 /* Layered renderer: floor, decals, actors, light buffer, additive glow, walls, overlays */
 type Scene = Pick<Operation, 'time' | 'alarm' | 'enemies' | 'projectiles' | 'effects' | 'devices' | 'drops' | 'lockers' | 'cells' | 'marks' | 'shake'>
   & Partial<Pick<Operation, 'healthLimit' | 'hitMarker' | 'killMarker' | 'up'>>
   & { player: Player | null; anomalies: AnomalySprite[] };
-export const renderer = (() => {
-  const canvas = document.querySelector<HTMLCanvasElement>('#arena')!;
-  const radar = document.querySelector<HTMLCanvasElement>('#radar')!;
+export function createRenderer(canvas: HTMLCanvasElement, radar: HTMLCanvasElement, session: RuntimeSession, controls: InputState, signal: AbortSignal) {
   const ctx = core.canvasContext(canvas, { alpha: false });
   const mini = core.canvasContext(radar);
   const M = siteMap, A = art, F = effects;
@@ -32,7 +29,7 @@ export const renderer = (() => {
   M.renderFloor();
   M.bakeLamps();
   F.reset();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => M.renderFloor());
+  document.fonts?.ready.then(() => { if (!signal.aborted) M.renderFloor(); });
 
   function resize() {
     view.w = window.innerWidth;
@@ -599,6 +596,6 @@ export const renderer = (() => {
   }
 
   resize();
-  window.addEventListener('resize', resize);
-  return { frame, attract, world, snap, screen, view };
-})();
+  window.addEventListener('resize', resize, { signal });
+  return { frame, attract, world, snap };
+}

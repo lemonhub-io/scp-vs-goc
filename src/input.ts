@@ -1,5 +1,5 @@
 import type { Point } from './core';
-import { session } from './session';
+import type { RuntimeSession } from './session';
 
 /* Keyboard, mouse, gamepad and touch unified into one per-frame snapshot */
 export interface InputSnapshot {
@@ -12,7 +12,7 @@ export interface InputSnapshot {
 
 type PadButtons = Record<number, boolean>;
 interface TouchStick extends Point { id: number; ox: number; oy: number }
-interface InputState {
+export interface InputState {
   keys: Record<string, boolean>;
   pressed: Record<string, boolean>;
   mouse: Point & { ready: boolean; down: boolean; rdown: boolean; rpressed: boolean; lpressed: boolean };
@@ -26,7 +26,7 @@ interface InputState {
   endFrame(): void;
 }
 
-export const input = (() => {
+export function createInput(session: RuntimeSession, signal: AbortSignal): InputState {
   const I: InputState = {
     keys: {}, pressed: {}, mouse: { x: 0, y: 0, ready: false, down: false, rdown: false, rpressed: false, lpressed: false },
     wheel: 0, usingPad: false, touch: false, state: null,
@@ -44,22 +44,22 @@ export const input = (() => {
     I.keys[e.code] = true;
     I.usingPad = false;
     if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code) && session.state === 'play') e.preventDefault();
-  });
-  window.addEventListener('keyup', (e) => { I.keys[e.code] = false; });
-  window.addEventListener('blur', () => { I.keys = {}; I.mouse.down = false; I.mouse.rdown = false; });
-  window.addEventListener('mousemove', (e) => { I.mouse.x = e.clientX; I.mouse.y = e.clientY; I.mouse.ready = true; I.usingPad = false; });
+  }, { signal });
+  window.addEventListener('keyup', (e) => { I.keys[e.code] = false; }, { signal });
+  window.addEventListener('blur', () => { I.keys = {}; I.mouse.down = false; I.mouse.rdown = false; }, { signal });
+  window.addEventListener('mousemove', (e) => { I.mouse.x = e.clientX; I.mouse.y = e.clientY; I.mouse.ready = true; I.usingPad = false; }, { signal });
   window.addEventListener('mousedown', (e) => {
     if (e.target instanceof Element && e.target.closest('.ui-layer button, .ui-layer input, .panel')) return;
     I.mouse.x = e.clientX; I.mouse.y = e.clientY; I.mouse.ready = true;
     if (e.button === 0) { I.mouse.down = true; I.mouse.lpressed = true; }
     if (e.button === 2) { I.mouse.rdown = true; I.mouse.rpressed = true; }
-  });
+  }, { signal });
   window.addEventListener('mouseup', (e) => {
     if (e.button === 0) I.mouse.down = false;
     if (e.button === 2) I.mouse.rdown = false;
-  });
-  window.addEventListener('contextmenu', (e) => e.preventDefault());
-  window.addEventListener('wheel', (e) => { I.wheel += Math.sign(e.deltaY); }, { passive: true });
+  }, { signal });
+  window.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+  window.addEventListener('wheel', (e) => { I.wheel += Math.sign(e.deltaY); }, { passive: true, signal });
 
   /* Touch: left half moves, right half aims and fires, buttons on the right */
   function setupTouch() {
@@ -89,7 +89,7 @@ export const input = (() => {
         else if (!right && !touch.move) { touch.move = t; place(stickL, t); }
       }
       e.preventDefault();
-    }, { passive: false });
+    }, { passive: false, signal });
     layer.addEventListener('touchmove', (e) => {
       for (const tc of e.changedTouches) {
         for (const k of ['move', 'aim'] as const) {
@@ -105,7 +105,7 @@ export const input = (() => {
         }
       }
       e.preventDefault();
-    }, { passive: false });
+    }, { passive: false, signal });
     const end = (e: TouchEvent) => {
       for (const tc of e.changedTouches) {
         for (const k of ['move', 'aim'] as const) {
@@ -125,8 +125,8 @@ export const input = (() => {
         });
       }
     };
-    layer.addEventListener('touchend', end);
-    layer.addEventListener('touchcancel', end);
+    layer.addEventListener('touchend', end, { signal });
+    layer.addEventListener('touchcancel', end, { signal });
   }
 
   function resetTouch() {
@@ -250,5 +250,6 @@ export const input = (() => {
     I.wheel = 0;
   }
 
+  setupTouch();
   return I;
-})();
+}

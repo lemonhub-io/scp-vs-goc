@@ -1,26 +1,8 @@
-import * as core from './core';
-import * as data from './data';
-import * as translations from './i18n';
-import './pwa';
-import { audio } from './audio';
-import { input } from './input';
-import { map, TILE } from './map';
-import { fx } from './fx';
-import { Operation } from './game';
-import './combat';
-import './enemy-ai';
-import './threats';
-import { art } from './art';
-import { renderer } from './render';
-import { session } from './session';
-import { ui } from './ui';
+import { startGame } from './runtime';
 
-// Keep the existing developer console entry point while modules use explicit imports.
-Object.defineProperty(window, 'G', {
-  value: {
-    ...core, ...data, ...translations, audio, input, map, TILE, fx, Operation, art, renderer,
-    show: ui.show,
-    get state() { return session.state; },
-    get run() { return ui.run; },
-  },
-});
+if (location.protocol === 'http:' || location.protocol === 'https:') {
+  const arena = document.querySelector<HTMLCanvasElement>('#arena');
+  const radar = document.querySelector<HTMLCanvasElement>('#radar');
+  if (!arena || !radar) throw new Error('The game canvas is missing');
+  startGame(arena, radar);
+}

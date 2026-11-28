@@ -4,26 +4,28 @@ import * as core from './core';
 import * as data from './data';
 import type { Weapon } from './data';
 import { fx as effects } from './fx';
-import { Operation } from './game';
+import type { Operation } from './game';
 import type { InputSnapshot } from './input';
 import { map as siteMap } from './map';
 import type { Anomaly, Arm, Enemy, Player, ProjectileOptions, Shot, Team } from './simulation';
 
-const combatMethods = {
-  mark(this: Operation, shot: Shot | undefined): void {
-    if (shot && !shot.hit) { shot.hit = true; this.hits++; }
-    if (shot) this.hitMarker = this.time + 0.14;
-  },
+export class CombatSystem {
+  constructor(private readonly run: Operation) {}
 
-  sparks(this: Operation, x: number, y: number, color: string, count = 6, speed = 160, angle?: number, spread?: number): void {
+  mark(shot: Shot | undefined): void {
+    if (shot && !shot.hit) { shot.hit = true; this.run.hits++; }
+    if (shot) this.run.hitMarker = this.run.time + 0.14;
+  }
+
+  sparks(x: number, y: number, color: string, count = 6, speed = 160, angle?: number, spread?: number): void {
     effects.sparks(x, y, color, count, speed * 1.6, angle, spread);
-  },
+  }
 
-  popup(this: Operation, x: number, y: number, text: number | string, color: string, big: boolean): void {
-    this.fx(x, y, { type: 'number', vy: -38, vx: core.rand(-12, 12), text, color, big, duration: big ? 0.9 : 0.6 });
-  },
+  popup(x: number, y: number, text: number | string, color: string, big: boolean): void {
+    this.run.fx(x, y, { type: 'number', vy: -38, vx: core.rand(-12, 12), text, color, big, duration: big ? 0.9 : 0.6 });
+  }
 
-  strike(this: Operation, e: Enemy | Anomaly, damage: number, x: number, y: number, piercing = false, knock = 0): boolean {
+  strike(e: Enemy | Anomaly, damage: number, x: number, y: number, piercing = false, knock = 0): boolean {
     const angle = Math.atan2(e.y - y, e.x - x);
     if ('kind' in e) {
       if (e.kind !== 'scp106' || e.dormant) return false;
@@ -33,7 +35,7 @@ const combatMethods = {
         e.dormant = 12;
         e.health = 560;
         effects.corrosion(e.x, e.y, 40);
-        this.fx(e.x, e.y, { type: 'ring', radius: 104, color: '#88677b', duration: 0.8 });
+        this.run.fx(e.x, e.y, { type: 'ring', radius: 104, color: '#88677b', duration: 0.8 });
         audio.play('growl', e);
       }
       return true;
@@ -55,7 +57,7 @@ const combatMethods = {
     else if (e.ward > 0 && !piercing) damage *= 0.55;
     e.hp -= damage;
     e.hit = 0.11;
-    if (e.ai) e.ai.pressureUntil = this.time + 0.85;
+    if (e.ai) e.ai.pressureUntil = this.run.time + 0.85;
     if (knock && !e.boss) siteMap.move(e, Math.cos(angle) * knock * 0.045, Math.sin(angle) * knock * 0.045, e.type === 'drone');
     if (core.settings.dmgNums) this.popup(e.x + core.rand(-6, 6), e.y - e.r - 8, Math.round(damage), weak ? '#ffb070' : '#f2efe4', weak || damage >= 100);
     if (!guarded) {
@@ -66,24 +68,24 @@ const combatMethods = {
     }
     if (e.hp <= 0) this.kill(e, angle);
     return true;
-  },
+  }
 
-  kill(this: Operation, e: Enemy, angle = e.angle + Math.PI): void {
+  kill(e: Enemy, angle = e.angle + Math.PI): void {
     if (e.dead) return;
     e.dead = true;
     const def = data.ENEMY[e.type];
     if (def && e.type !== 'pylon') {
-      this.kills++;
-      this.combo++;
-      this.comboT = 3.2;
-      this.best = Math.max(this.best, this.combo);
-      this.credits += Math.round(def.reward * this.diff.reward * (e.elite ? 1.4 : 1));
-      const pts = Math.round(def.score * this.diff.score * (e.elite ? 1.4 : 1) * this.mult);
-      this.score += pts;
-      this.fx(e.x, e.y - e.r - 20, { type: 'text', vy: -26, vx: 0, text: '+' + pts, color: this.mult > 1 ? '#ffb547' : '#c9d1d8', duration: 0.9 });
-      if (!e.boss && core.chance(0.26)) this.drops.push({ x: e.x, y: e.y, kind: core.pick(['ammo', 'ammo', 'plate', 'med']), life: 20 });
-      this.killMarker = this.time + 0.14;
-      this.hitMarker = this.time + 0.14;
+      this.run.kills++;
+      this.run.combo++;
+      this.run.comboT = 3.2;
+      this.run.best = Math.max(this.run.best, this.run.combo);
+      this.run.credits += Math.round(def.reward * this.run.diff.reward * (e.elite ? 1.4 : 1));
+      const pts = Math.round(def.score * this.run.diff.score * (e.elite ? 1.4 : 1) * this.run.mult);
+      this.run.score += pts;
+      this.run.fx(e.x, e.y - e.r - 20, { type: 'text', vy: -26, vx: 0, text: '+' + pts, color: this.run.mult > 1 ? '#ffb547' : '#c9d1d8', duration: 0.9 });
+      if (!e.boss && core.chance(0.26)) this.run.drops.push({ x: e.x, y: e.y, kind: core.pick(['ammo', 'ammo', 'plate', 'med']), life: 20 });
+      this.run.killMarker = this.run.time + 0.14;
+      this.run.hitMarker = this.run.time + 0.14;
     }
     if (e.type === 'drone' || e.type === 'pylon') {
       effects.explosion(e.x, e.y, e.type === 'pylon' ? 40 : 30);
@@ -94,42 +96,42 @@ const combatMethods = {
       effects.stamp(c => art.corpse(c, { ...e, angle: angle }));
       effects.blood(e.x, e.y, angle, 10, e.type === 'zombie' ? '#3d4a1c' : '#8e1f1c', 240);
     }
-    if (e.elite) this.hitstop = Math.max(this.hitstop, 0.04);
+    if (e.elite) this.run.hitstop = Math.max(this.run.hitstop, 0.04);
     if (e.boss) {
-      this.hitstop = 0.22;
-      this.shake = 1;
+      this.run.hitstop = 0.22;
+      this.run.shake = 1;
       for (let i = 0; i < 6; i++) effects.explosion(e.x + core.rand(-40, 40), e.y + core.rand(-40, 40), core.rand(40, 80));
-      this.fx(e.x, e.y, { type: 'ring', radius: 260, color: '#ff9a4a', duration: 1, bright: true });
-      this.radio('c_site', 'com_boss_down');
+      this.run.fx(e.x, e.y, { type: 'ring', radius: 260, color: '#ff9a4a', duration: 1, bright: true });
+      this.run.radio('c_site', 'com_boss_down');
       audio.play('explosion', e);
       effects.scorch(e.x, e.y, 90);
     } else audio.play('kill', { ...e, vol: 0.5 });
     if (e.type === 'pylon') {
-      const archon = this.enemies.find(other => other.type === 'archon' && !other.dead);
-      if (archon && !this.enemies.some(other => other.type === 'pylon' && !other.dead)) archon.warded = false;
+      const archon = this.run.enemies.find(other => other.type === 'archon' && !other.dead);
+      if (archon && !this.run.enemies.some(other => other.type === 'pylon' && !other.dead)) archon.warded = false;
     }
-  },
+  }
 
-  targets(this: Operation): (Enemy | Anomaly)[] {
-    return [...this.enemies.filter(e => !e.dead), ...this.anomalies.filter(a => a.kind === 'scp106' && !a.dormant)];
-  },
+  targets(): (Enemy | Anomaly)[] {
+    return [...this.run.enemies.filter(e => !e.dead), ...this.run.anomalies.filter(a => a.kind === 'scp106' && !a.dormant)];
+  }
 
-  fire(this: Operation, w: Weapon, slot: Arm): void {
-    const p = this.player;
+  fire(w: Weapon, slot: Arm): void {
+    const p = this.run.player;
     const reach = siteMap.trace(p.x, p.y, p.x + Math.cos(p.angle) * w.len, p.y + Math.sin(p.angle) * w.len);
     const x = p.x + Math.cos(p.angle) * w.len * reach * 0.98;
     const y = p.y + Math.sin(p.angle) * w.len * reach * 0.98;
-    const damage = w.dmg * (1 + this.up.dmg * 0.12);
+    const damage = w.dmg * (1 + this.run.up.dmg * 0.12);
     const shot = { hit: false };
     slot.mag--;
     slot.cd = 1 / (w.rate * (p.cola ? 1.32 : 1));
-    this.shots++;
-    this.enemyNoise = { x: p.x, y: p.y, at: this.time };
+    this.run.shots++;
+    this.run.enemyNoise = { x: p.x, y: p.y, at: this.run.time };
     p.flash = 0.075;
     p.kick = 1;
-    this.shake = Math.max(this.shake, w.shake * 1.4);
-    this.kickX -= Math.cos(p.angle) * w.recoil * 0.9;
-    this.kickY -= Math.sin(p.angle) * w.recoil * 0.9;
+    this.run.shake = Math.max(this.run.shake, w.shake * 1.4);
+    this.run.kickX -= Math.cos(p.angle) * w.recoil * 0.9;
+    this.run.kickY -= Math.sin(p.angle) * w.recoil * 0.9;
     effects.muzzle(x, y, p.angle, w.type === 'tesla' ? '#9fe8ff' : w.type === 'rail' ? '#ffb36b' : '#ffd9a0', w.id === 'b12' || w.type === 'rail' ? 1.4 : w.id === 'p9' ? 0.8 : 1);
     if (!w.type) effects.casing(p.x + Math.cos(p.angle) * 8, p.y + Math.sin(p.angle) * 8, p.angle, w.id === 'b12');
     audio.play(w.sound);
@@ -142,14 +144,14 @@ const combatMethods = {
       let from = { x, y };
       let target: Enemy | Anomaly | undefined = seen[0];
       for (let n = 0; n < w.chain && target; n++) {
-        this.fx(from.x, from.y, { type: 'arc', tx: target.x, ty: target.y, color: w.color, duration: 0.16 });
+        this.run.fx(from.x, from.y, { type: 'arc', tx: target.x, ty: target.y, color: w.color, duration: 0.16 });
         if (this.strike(target, damage * 0.8 ** n, from.x, from.y, true, w.knock)) this.mark(shot);
         visited.add(target);
         from = target;
         target = this.targets().filter(e => !visited.has(e) && core.dist(from.x, from.y, e.x, e.y) < w.chainRange &&
           siteMap.trace(from.x, from.y, e.x, e.y) === 1).sort((a, b) => core.dist2(from.x, from.y, a.x, a.y) - core.dist2(from.x, from.y, b.x, b.y))[0];
       }
-      if (!visited.size) this.fx(x, y, { type: 'arc', tx: x + Math.cos(p.angle) * 34, ty: y + Math.sin(p.angle) * 34, color: w.color, duration: 0.13 });
+      if (!visited.size) this.run.fx(x, y, { type: 'arc', tx: x + Math.cos(p.angle) * 34, ty: y + Math.sin(p.angle) * 34, color: w.color, duration: 0.13 });
     } else if (w.type === 'rail') {
       const tx = x + Math.cos(p.angle) * 1100, ty = y + Math.sin(p.angle) * 1100;
       const t = siteMap.trace(x, y, tx, ty);
@@ -157,7 +159,7 @@ const combatMethods = {
       for (const e of this.targets()) {
         if (core.segCircle(x, y, ex, ey, e.x, e.y, e.r) >= 0 && this.strike(e, damage, x, y, true, w.knock)) this.mark(shot);
       }
-      this.fx(x, y, { type: 'beam', tx: ex, ty: ey, color: w.color, duration: 0.26 });
+      this.run.fx(x, y, { type: 'beam', tx: ex, ty: ey, color: w.color, duration: 0.26 });
     } else {
       const spread = w.spread + (w.pellets > 1 ? 0 : p.bloom);
       p.bloom = Math.min(0.12, p.bloom + w.recoil * 0.006);
@@ -166,17 +168,17 @@ const combatMethods = {
         this.bullet(x, y, a, w.speed, damage, 'player', { shot, knock: w.knock, color: w.color, falloff: w.falloff, len: w.len });
       }
     }
-  },
+  }
 
-  bullet(this: Operation, x: number, y: number, angle: number, speed: number, damage: number, team: Team, opts: ProjectileOptions = {}): void {
-    this.projectiles.push({ x, y, angle, speed, damage, team, life: 1.55, traveled: 0,
+  bullet(x: number, y: number, angle: number, speed: number, damage: number, team: Team, opts: ProjectileOptions = {}): void {
+    this.run.projectiles.push({ x, y, angle, speed, damage, team, life: 1.55, traveled: 0,
       color: team === 'hostile' ? '#ff7958' : '#fff0b5', len: 17, ...opts });
-  },
+  }
 
-  updateProjectiles(this: Operation, dt: number): void {
-    const p = this.player;
+  updateProjectiles(dt: number): void {
+    const p = this.run.player;
     const live = [];
-    for (const b of this.projectiles) {
+    for (const b of this.run.projectiles) {
       b.life -= dt;
       if (b.homing) b.angle = core.turnTo(b.angle, Math.atan2(p.y - b.y, p.x - b.x), b.homing * dt);
       const tx = b.x + Math.cos(b.angle) * b.speed * dt, ty = b.y + Math.sin(b.angle) * b.speed * dt;
@@ -192,7 +194,7 @@ const combatMethods = {
       const x = core.lerp(b.x, tx, limit), y = core.lerp(b.y, ty, limit);
       if (limit < 1 || b.life <= 0) {
         if (b.blast) this.explode(x, y, b.blast, b.damage, b.team);
-        else if (target === p) this.damage(b.damage, b.x, b.y);
+        else if (target === p) this.run.damage(b.damage, b.x, b.y);
         else if (target && ('type' in target || 'kind' in target)) {
           const damage = b.damage * (b.falloff ? Math.max(0.25, 1 - b.traveled / b.falloff * 0.75) : 1);
           if (this.strike(target, damage, b.x, b.y, false, b.knock)) {
@@ -213,11 +215,11 @@ const combatMethods = {
         live.push(b);
       }
     }
-    this.projectiles = live;
-  },
+    this.run.projectiles = live;
+  }
 
-  explode(this: Operation, x: number, y: number, radius: number, damage: number, team: Team): void {
-    const p = this.player;
+  explode(x: number, y: number, radius: number, damage: number, team: Team): void {
+    const p = this.run.player;
     if (team !== 'hostile') {
       for (const e of this.targets()) {
         const d = core.dist(x, y, e.x, e.y);
@@ -227,21 +229,21 @@ const combatMethods = {
     }
     const d = core.dist(x, y, p.x, p.y);
     if (d < radius && siteMap.trace(x, y, p.x, p.y) === 1) {
-      this.damage(damage * (1 - 0.55 * d / radius) * (team === 'hostile' ? 1 : 0.24), x, y);
+      this.run.damage(damage * (1 - 0.55 * d / radius) * (team === 'hostile' ? 1 : 0.24), x, y);
     }
-    this.shake = Math.max(this.shake, Math.min(1, 0.9 / (1 + d / 380)));
-    this.fx(x, y, { type: 'ring', radius: radius * 1.1, color: '#ffb070', bright: true, duration: 0.45 });
+    this.run.shake = Math.max(this.run.shake, Math.min(1, 0.9 / (1 + d / 380)));
+    this.run.fx(x, y, { type: 'ring', radius: radius * 1.1, color: '#ffb070', bright: true, duration: 0.45 });
     effects.explosion(x, y, radius * 0.55);
     audio.play(radius > 80 ? 'explosion' : 'smallboom', { x, y });
-  },
+  }
 
-  useItems(this: Operation, input: InputSnapshot): void {
-    const p = this.player, bag = this.inventory;
-    if (input.heal && bag.scp500 && p.hp < this.healthLimit) {
-      p.hp = this.healthLimit;
+  useItems(input: InputSnapshot): void {
+    const p = this.run.player, bag = this.run.inventory;
+    if (input.heal && bag.scp500 && p.hp < this.run.healthLimit) {
+      p.hp = this.run.healthLimit;
       p.warned = false;
       bag.scp500--;
-      this.fx(p.x, p.y, { type: 'ring', radius: 75, color: '#7ee0a0', duration: 0.48, bright: true });
+      this.run.fx(p.x, p.y, { type: 'ring', radius: 75, color: '#7ee0a0', duration: 0.48, bright: true });
       effects.light(p.x, p.y, 200, '#7ee0a0', 0.6, 1);
       for (let i = 0; i < 14; i++) effects.add({ t: 'ember', x: p.x + core.rand(-14, 14), y: p.y + core.rand(-14, 14), vx: core.rand(-30, 30), vy: core.rand(-50, -10), life: core.rand(0.5, 1), size: 1.6, drag: 1, color: '#7ee0a0' });
       audio.play('pill');
@@ -250,25 +252,25 @@ const combatMethods = {
       p.cola = 10;
       p.hp -= 8;
       bag.scp207--;
-      this.fx(p.x, p.y, { type: 'ring', radius: 60, color: '#ff4a57', duration: 0.4, bright: true });
+      this.run.fx(p.x, p.y, { type: 'ring', radius: 60, color: '#ff4a57', duration: 0.4, bright: true });
       audio.play('can');
     }
     for (const [pressed, type, duration, speed] of [[input.grenade, 'frag', 0.88, 520], [input.ball, 'scp018', 7.5, 430]] as const) {
       if (!pressed || !bag[type]) continue;
       bag[type]--;
-      this.devices.push({ type, x: p.x, y: p.y, vx: Math.cos(p.angle) * speed, vy: Math.sin(p.angle) * speed,
+      this.run.devices.push({ type, x: p.x, y: p.y, vx: Math.cos(p.angle) * speed, vy: Math.sin(p.angle) * speed,
         life: duration, duration, bounce: 0, contacts: new Map(), age: 0, r: 5 });
       audio.play('throw');
     }
     if (input.sentry && bag.sentry) {
       bag.sentry--;
-      this.devices.push({ type: 'sentry', x: p.x, y: p.y, angle: p.angle, life: 24, duration: 24, cd: 0 });
+      this.run.devices.push({ type: 'sentry', x: p.x, y: p.y, angle: p.angle, life: 24, duration: 24, cd: 0 });
       audio.play('deploy');
     }
-  },
+  }
 
-  updateDevices(this: Operation, dt: number): void {
-    for (const d of this.devices) {
+  updateDevices(dt: number): void {
+    for (const d of this.run.devices) {
       d.life -= dt;
       if (d.life <= 0) {
         if (d.type === 'frag') this.explode(d.x, d.y, 151, 240, 'player');
@@ -312,20 +314,20 @@ const combatMethods = {
         audio.play('ball', { ...d, p: Math.min(1, d.bounce / 5) });
       }
       for (const e of this.targets()) {
-        if ((d.contacts.get(e) || 0) <= this.time && core.segCircle(x, y, d.x, d.y, e.x, e.y, e.r + d.r) >= 0) {
+        if ((d.contacts.get(e) || 0) <= this.run.time && core.segCircle(x, y, d.x, d.y, e.x, e.y, e.r + d.r) >= 0) {
           this.strike(e, 106 + Math.min(140, d.bounce * 30), x, y, true, 300);
-          d.contacts.set(e, this.time + 0.38);
+          d.contacts.set(e, this.run.time + 0.38);
         }
       }
-      const p = this.player;
-      if (d.age > 0.62 && core.segCircle(x, y, d.x, d.y, p.x, p.y, p.r + d.r) >= 0) this.damage(33, d.x, d.y);
+      const p = this.run.player;
+      if (d.age > 0.62 && core.segCircle(x, y, d.x, d.y, p.x, p.y, p.r + d.r) >= 0) this.run.damage(33, d.x, d.y);
     }
-    this.devices = this.devices.filter(d => d.life > 0);
-  },
+    this.run.devices = this.run.devices.filter(d => d.life > 0);
+  }
 
-  updateDrops(this: Operation, dt: number): void {
-    const p = this.player;
-    this.drops = this.drops.filter(d => {
+  updateDrops(dt: number): void {
+    const p = this.run.player;
+    this.run.drops = this.run.drops.filter(d => {
       d.life -= dt;
       if (d.life <= 0) return false;
       const dist = core.dist(d.x, d.y, p.x, p.y);
@@ -336,23 +338,17 @@ const combatMethods = {
       }
       if (dist > 26) return true;
       if (d.kind === 'ammo') {
-        if (!p.arms.some((a, i) => a.owned && a.reserve < this.reserveLimit(i))) return true;
-        this.resupply(0.12);
+        if (!p.arms.some((a, i) => a.owned && a.reserve < this.run.reserveLimit(i))) return true;
+        this.run.resupply(0.12);
       } else if (d.kind === 'plate') {
-        if (p.armor >= this.armorLimit) return true;
-        p.armor = Math.min(this.armorLimit, p.armor + 14);
+        if (p.armor >= this.run.armorLimit) return true;
+        p.armor = Math.min(this.run.armorLimit, p.armor + 14);
       } else {
-        if (p.hp >= this.healthLimit) return true;
-        p.hp = Math.min(this.healthLimit, p.hp + 12);
+        if (p.hp >= this.run.healthLimit) return true;
+        p.hp = Math.min(this.run.healthLimit, p.hp + 12);
       }
       audio.play('pickup');
       return false;
     });
-  },
-};
-
-declare module './game' {
-  interface Operation extends CombatMethods {}
+  }
 }
-  type CombatMethods = typeof combatMethods;
-  Object.assign(Operation.prototype, combatMethods);

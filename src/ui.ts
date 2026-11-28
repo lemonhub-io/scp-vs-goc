@@ -6,12 +6,10 @@ import type { DifficultyId, ItemId, ShopCategory } from './data';
 import { fx as effects } from './fx';
 import { Operation } from './game';
 import * as translations from './i18n';
-import { input as controls } from './input';
-import type { InputSnapshot } from './input';
+import type { InputSnapshot, InputState } from './input';
 import { map as siteMap } from './map';
-import { renderer } from './render';
-import { session } from './session';
-import type { Screen } from './session';
+import type { createRenderer } from './render';
+import type { RuntimeSession, Screen } from './session';
 
 type ManualTab = 'controls' | 'hostiles' | 'anomalies';
 interface SpecialElements {
@@ -20,13 +18,13 @@ interface SpecialElements {
 }
 
 
-export const ui = (() => {
+export function mountUi(session: RuntimeSession, controls: InputState, renderer: ReturnType<typeof createRenderer>, signal: AbortSignal) {
   function $<Id extends string>(id: Id): Id extends keyof SpecialElements ? SpecialElements[Id] : HTMLElement {
     const el = document.getElementById(id);
     if (!el) throw new Error('Missing element ' + id);
     return el as Id extends keyof SpecialElements ? SpecialElements[Id] : HTMLElement;
   }
-  const on = (id: string, fn: () => void) => $(id).addEventListener('click', fn);
+  const on = (id: string, fn: () => void) => $(id).addEventListener('click', fn, { signal });
   const t = translations.t;
   const screens = Array.from(document.querySelectorAll<HTMLElement>('.screen'));
   const meter = (el: HTMLElement, value: number) => { el.style.width = core.clamp(value * 100, 0, 100) + '%'; };
@@ -407,39 +405,39 @@ export const ui = (() => {
   document.querySelectorAll<HTMLButtonElement>('[data-close]').forEach(button => button.addEventListener('click', () => {
     const id = button.dataset.close;
     if (id === 'settings' || id === 'credits' || id === 'manual' || id === 'brief') closeOverlay(id);
-  }));
+  }, { signal }));
   document.querySelectorAll<HTMLInputElement>('input[name=difficulty]').forEach(input => input.addEventListener('change', () => {
     core.settings.difficulty = Number(input.value);
     core.saveSettings();
     refresh();
-  }));
+  }, { signal }));
   document.querySelectorAll<HTMLInputElement>('[data-setting]').forEach(input => {
     const key = input.dataset.setting;
     if (key === 'dmgNums' || key === 'hints') {
       input.checked = core.settings[key];
-      input.addEventListener('input', () => { core.settings[key] = input.checked; core.saveSettings(); });
+      input.addEventListener('input', () => { core.settings[key] = input.checked; core.saveSettings(); }, { signal });
     } else if (key === 'master' || key === 'music' || key === 'sfx' || key === 'shake') {
       input.value = String(core.settings[key]);
       input.addEventListener('input', () => {
         core.settings[key] = Number(input.value);
         core.saveSettings();
         audio.setVolumes();
-      });
+      }, { signal });
     }
   });
   $('set-language').addEventListener('change', () => {
     const value = $('set-language').value;
     if (value === 'en' || value === 'zh') setLanguage(value);
-  });
+  }, { signal });
   document.addEventListener('click', event => {
     if (event.target instanceof Element && event.target.closest('.ui-layer button')) {
       audio.play('ui', { ui: true });
     }
-  });
+  }, { signal });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && session.state === 'play') show('pause', 'resume');
-  });
-  window.addEventListener('blur', () => { if (session.state === 'play') show('pause', 'resume'); });
+  }, { signal });
+  window.addEventListener('blur', () => { if (session.state === 'play') show('pause', 'resume'); }, { signal });
 
   function pauseOrBack() {
     const state = session.state;
@@ -451,7 +449,7 @@ export const ui = (() => {
   // Inputs handle their own arrow keys and still allow Escape to close the current screen.
   document.addEventListener('keydown', event => {
     if (event.code === 'Escape' && event.target instanceof Element && event.target.matches('input, select')) pauseOrBack();
-  });
+  }, { signal });
 
   function gamepadMenu(input: InputSnapshot) {
     const active = document.getElementById(session.state);
@@ -466,12 +464,7 @@ export const ui = (() => {
     else if (input.menuBack) pauseOrBack();
   }
 
-  let previous = 0;
-  function frame(now: number) {
-    const dt = Math.min(0.033, (now - (previous || now)) / 1000);
-    previous = now;
-    const p = run?.player || siteMap.start;
-    const input = controls.poll(p.x, p.y, renderer.world);
+  function update(dt: number, input: InputSnapshot) {
     if (input.pause) pauseOrBack();
     else if (session.state !== 'play' && (input.menuMove || input.menuSelect || input.menuBack)) gamepadMenu(input);
     if (run) {
@@ -490,14 +483,9 @@ export const ui = (() => {
           show('report', 'retry');
         } else updateHud();
       }
-      renderer.frame(run, input, session.state === 'play' ? dt : 0);
-    } else renderer.attract(dt);
-    controls.endFrame();
-    window.requestAnimationFrame(frame);
+    }
   }
 
-  controls.setupTouch();
   show('menu');
-  window.requestAnimationFrame(frame);
-  return { show, get run() { return run; } };
-})();
+  return { update, get run() { return run; } };
+}
