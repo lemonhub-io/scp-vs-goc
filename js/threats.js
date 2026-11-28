@@ -188,7 +188,8 @@ Object.assign(G.Operation.prototype, {
     const remaining = goal ? G.dist(e.x, e.y, goal.x, goal.y) : 0;
     const moving = remaining > 12;
     const heading = moving ? G.map.direction(e, goal.x, goal.y) : e.angle;
-    e.angle = G.turnTo(e.angle, visible ? aim : heading, dt * (e.type === 'exo' ? 1.75 : 7));
+    const turnRate = G.ENEMY[e.type]?.frontGuard?.turnRate ?? (e.type === 'exo' ? 1.75 : 7);
+    e.angle = G.turnTo(e.angle, visible ? aim : heading, dt * turnRate);
     if (!moving) return;
     const pace = e.ai.mode === 'cover' || e.ai.mode === 'evade' || !visible ? 1 : e.type === 'shield' ? 0.93 : 0.78;
     this.steer(e, heading, dt, pace);

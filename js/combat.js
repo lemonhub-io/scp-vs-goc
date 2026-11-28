@@ -31,24 +31,30 @@ Object.assign(G.Operation.prototype, {
       return true;
     }
     const relative = Math.abs(G.angDiff(e.angle, Math.atan2(y - e.y, x - e.x)));
-    if (e.warded || (e.type === 'shield' && !piercing && relative < 1.13)) {
+    const guard = G.ENEMY[e.type]?.frontGuard;
+    const guarded = guard && !piercing && relative < guard.halfAngle;
+    if (e.warded || guarded) {
       const hx = e.x + Math.cos(angle + Math.PI) * (e.r + 4), hy = e.y + Math.sin(angle + Math.PI) * (e.r + 4);
       G.fx.sparks(hx, hy, '#8ae6ff', 5, 240, angle + Math.PI, 0.9);
       G.audio.play('shield', e);
-      return false;
+      if (e.warded) return false;
     }
     let weak = false;
     if (e.type === 'exo' && relative > 2.28) { damage *= 2; weak = true; }
-    if (e.ward > 0 && !piercing) damage *= 0.55;
+    // A shield and an adept's ward cannot multiply their damage reductions.
+    if (guarded) { damage *= guard.damageTaken; knock *= guard.damageTaken; }
+    else if (e.ward > 0 && !piercing) damage *= 0.55;
     e.hp -= damage;
     e.hit = 0.11;
     if (e.ai) e.ai.pressureUntil = this.time + 0.85;
     if (knock && !e.boss) G.map.move(e, Math.cos(angle) * knock * 0.045, Math.sin(angle) * knock * 0.045, e.type === 'drone');
     if (G.settings.dmgNums) this.popup(e.x + G.rand(-6, 6), e.y - e.r - 8, Math.round(damage), weak ? '#ffb070' : '#f2efe4', weak || damage >= 100);
-    const metal = e.type === 'drone' || e.type === 'exo' || e.type === 'pylon';
-    if (metal) G.fx.sparks(e.x, e.y, e.type === 'pylon' ? '#8ae6ff' : '#ffd27a', 5, 260, angle, 0.9);
-    else G.fx.blood(e.x, e.y, angle, 4, e.type === 'zombie' ? '#3d4a1c' : e.type === 'adept' || e.type === 'archon' ? '#3a6fd8' : '#8e1f1c');
-    G.audio.play('hit', e);
+    if (!guarded) {
+      const metal = e.type === 'drone' || e.type === 'exo' || e.type === 'pylon';
+      if (metal) G.fx.sparks(e.x, e.y, e.type === 'pylon' ? '#8ae6ff' : '#ffd27a', 5, 260, angle, 0.9);
+      else G.fx.blood(e.x, e.y, angle, 4, e.type === 'zombie' ? '#3d4a1c' : e.type === 'adept' || e.type === 'archon' ? '#3a6fd8' : '#8e1f1c');
+      G.audio.play('hit', e);
+    }
     if (e.hp <= 0) this.kill(e, angle);
     return true;
   },
