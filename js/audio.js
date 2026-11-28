@@ -1,15 +1,39 @@
 'use strict';
 /* Procedural audio: every sound is synthesized with WebAudio */
 G.audio = (function () {
-  const A = { ready: false, listener: { x: 0, y: 0 } };
+  const A = { listener: { x: 0, y: 0 } };
   let ctx, master, sfx, music, ui, verb, verbSend, noiseBuf;
   const last = {};
+  const STARTUP_WINDOW = 250;
+  let resumeAt = -Infinity;
+  let pendingSounds = [];
+
+  function flushPending() {
+    if (document.hidden || ctx.state !== 'running') return;
+    const now = performance.now();
+    const sounds = pendingSounds;
+    pendingSounds = [];
+    for (const sound of sounds) {
+      if (now - sound.at <= STARTUP_WINDOW) A.play(sound.name, sound.opts);
+    }
+  }
+
+  function resume(force = false) {
+    if (!ctx || ctx.state === 'closed' || document.hidden) return;
+    if (ctx.state === 'running' && !force) return;
+    resumeAt = performance.now();
+    pendingSounds = pendingSounds.filter(sound => resumeAt - sound.at <= STARTUP_WINDOW);
+    // Call synchronously so a pointer or key event can authorize playback.
+    ctx.resume().then(flushPending, () => { /* retry on the next interaction */ });
+  }
 
   A.init = function () {
-    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    if (document.hidden) return;
+    if (ctx) { resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    ctx = new AC();
+    try { ctx = new AC(); } catch { return; }
+    ctx.addEventListener('statechange', flushPending);
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 5;
     comp.attack.value = 0.004; comp.release.value = 0.2;
@@ -32,21 +56,46 @@ G.audio = (function () {
     verb.buffer = ir;
     verbSend = ctx.createGain(); verbSend.gain.value = 0.22;
     verbSend.connect(verb); verb.connect(sfx);
-    A.ready = true;
-    A.setVolumes();
+    A.setVolumes(true);
     startMusic();
+    resume(true);
   };
 
-  A.setVolumes = function () {
+  A.setVolumes = function (initial = false) {
     if (!ctx) return;
     const s = G.settings;
-    master.gain.setTargetAtTime(s.master, ctx.currentTime, 0.05);
-    sfx.gain.setTargetAtTime(s.sfx, ctx.currentTime, 0.05);
-    ui.gain.setTargetAtTime(s.sfx * 0.9, ctx.currentTime, 0.05);
-    music.gain.setTargetAtTime(s.music * 0.55, ctx.currentTime, 0.05);
+    const volume = (node, value) => {
+      if (initial) node.gain.value = value;
+      else node.gain.setTargetAtTime(value, ctx.currentTime, 0.05);
+    };
+    volume(master, s.master);
+    volume(sfx, s.sfx);
+    volume(ui, s.sfx * 0.9);
+    volume(music, s.music * 0.55);
   };
 
-  A.suspend = (on) => { if (ctx) on ? ctx.suspend() : ctx.resume(); };
+  function unlockOnInput(event) {
+    if (!event.isTrusted || event.repeat) return;
+    if (event.type === 'pointerdown' && event.pointerType !== 'mouse') return;
+    if (event.type === 'pointerup' && event.pointerType === 'mouse') return;
+    A.init();
+  }
+
+  for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
+    document.addEventListener(type, unlockOnInput, { capture: true, passive: true });
+  }
+  if (!window.PointerEvent) document.addEventListener('touchend', unlockOnInput, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (!ctx || ctx.state === 'closed') return;
+    if (document.hidden) {
+      pendingSounds = [];
+      ctx.suspend().catch(() => {});
+    } else {
+      // Request resume even if the earlier suspend is still taking effect.
+      resume(true);
+    }
+  });
+  window.addEventListener('pageshow', () => resume());
 
   /* building blocks */
   function out(dest, pan, vol, wet) {
@@ -151,14 +200,19 @@ G.audio = (function () {
 
   /* opts: {x, y} positional, {ui:true}, {vol}, {p} */
   A.play = function (name, opts) {
-    if (!ctx || ctx.state !== 'running') return;
     const fn = SOUNDS[name];
-    if (!fn) return;
+    if (!fn || !ctx || document.hidden) return;
+    if (ctx.state !== 'running') {
+      const at = performance.now();
+      if (at - resumeAt <= STARTUP_WINDOW && pendingSounds.length < 12) {
+        pendingSounds.push({ name, opts: { ...opts }, at });
+      }
+      return;
+    }
     opts = opts || {};
     const now = ctx.currentTime;
     const gap = MIN_GAP[name] || 0.012;
-    if (last[name] && now - last[name] < gap) return;
-    last[name] = now;
+    if (last[name] !== undefined && now - last[name] < gap) return;
     let vol = opts.vol == null ? 1 : opts.vol, pan = 0;
     if (opts.x != null) {
       const dx = opts.x - A.listener.x, dy = opts.y - A.listener.y;
@@ -167,6 +221,7 @@ G.audio = (function () {
       vol *= 1 / (1 + dd / 380);
       pan = G.clamp(dx / 700, -0.85, 0.85);
     }
+    last[name] = now;
     const dest = out(opts.ui ? ui : sfx, pan, vol, !opts.ui);
     fn(now + 0.005, dest, opts);
   };
@@ -194,7 +249,8 @@ G.audio = (function () {
   };
 
   /* Generative score: 100 bpm sixteenth grid, intensity layers 0 to 3 */
-  const M = { level: 0, step: 0, next: 0, pad: [] };
+  const M = { level: 0, step: 0, next: 0, bar: -1, pad: [] };
+  const STEP = 60 / 100 / 4;
   const PROG = [0, 0, -4, -5]; // Am Am F E
   const CHORD = [[0, 3, 7], [0, 3, 7], [0, 4, 7], [0, 4, 7]];
   const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -228,22 +284,28 @@ G.audio = (function () {
   A.setMusic = function (level) { M.level = level; };
 
   function schedule() {
-    if (!ctx || ctx.state !== 'running') return;
-    const spb = 60 / 100 / 4;
-    while (M.next < ctx.currentTime + 0.14) {
+    if (document.hidden || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (M.next < now) {
+      const missed = Math.ceil((now - M.next) / STEP);
+      M.step += missed;
+      M.next += missed * STEP;
+    }
+    while (M.next < now + 0.14) {
       playStep(M.step, M.next);
-      M.next += spb;
+      M.next += STEP;
       M.step++;
     }
   }
 
   function playStep(step, t) {
     const lv = M.level;
-    const bar = Math.floor(step / 16) % 4;
+    const bar = Math.floor(step / 16);
     const s = step % 16;
-    const root = 45 + PROG[bar];
-    const ch = CHORD[bar];
-    if (s === 0) {
+    const root = 45 + PROG[bar % PROG.length];
+    const ch = CHORD[bar % CHORD.length];
+    if (bar !== M.bar) {
+      M.bar = bar;
       M.pad.forEach((o, i) => {
         const n = root + ch[i % 3] + (i >= 3 ? 12 : 0) - 12;
         o.frequency.setTargetAtTime(mf(n), t, 0.3);

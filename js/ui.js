@@ -385,13 +385,11 @@
   $('set-language').addEventListener('change', (event) => setLanguage(event.target.value));
   document.addEventListener('click', event => {
     if (event.target.closest('.ui-layer button')) {
-      G.audio.init();
       G.audio.play('ui', { ui: true });
     }
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && G.state === 'play') show('pause', 'resume');
-    G.audio.suspend(document.hidden);
   });
   window.addEventListener('blur', () => { if (G.state === 'play') show('pause', 'resume'); });
 

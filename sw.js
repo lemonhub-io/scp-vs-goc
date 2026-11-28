@@ -3,7 +3,7 @@
 // Bump the release whenever a cached file changes. Keep each installation isolated by scope.
 const scope = self.registration.scope;
 const prefix = 'site109-offline:' + encodeURIComponent(scope) + ':';
-const cacheName = prefix + '3';
+const cacheName = prefix + '4';
 const entry = new URL('index.html', scope).href;
 const assets = new Set([
   'index.html', 'manifest.webmanifest', 'css/main.css',
