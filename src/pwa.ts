@@ -1,7 +1,8 @@
-/* Generated browser script from src/pwa.ts. Edit the TypeScript source. */
+import * as translations from './i18n';
+import { session } from './session';
 
 (() => {
-  if (!window.isSecureContext || !/^https?:$/.test(location.protocol) || !('serviceWorker' in navigator)) return;
+  if (import.meta.env.DEV || !window.isSecureContext || !/^https?:$/.test(location.protocol) || !('serviceWorker' in navigator)) return;
 
   const install = document.querySelector<HTMLButtonElement>('#install-game');
   const update = document.querySelector<HTMLButtonElement>('#update-game');
@@ -46,7 +47,7 @@
 
   const showOfflineStatus = (key: 'pwa_ready' | 'pwa_preparing' | 'pwa_unavailable') => {
     status.dataset.i18n = key;
-    status.textContent = G.t(key);
+    status.textContent = translations.t(key);
   };
 
   const syncRegistration = () => {
@@ -63,13 +64,13 @@
   };
 
   update.addEventListener('click', () => {
-    if (!registration?.waiting || G.state !== 'menu') return;
+    if (!registration?.waiting || session.state !== 'menu') return;
     applyingUpdate = true;
     update.disabled = true;
     registration.waiting.postMessage('APPLY_UPDATE');
   });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (applyingUpdate && G.state === 'menu') location.reload();
+    if (applyingUpdate && session.state === 'menu') location.reload();
     applyingUpdate = false;
     update.disabled = false;
     if (registration) syncRegistration();

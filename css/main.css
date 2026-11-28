@@ -1,36 +1,36 @@
 @font-face {
   font-family: "Chakra Petch";
-  src: url("../fonts/chakra-petch/500.woff2") format("woff2");
+  src: url("/fonts/chakra-petch/500.woff2") format("woff2");
   font-weight: 500;
   font-display: swap;
 }
 @font-face {
   font-family: "Chakra Petch";
-  src: url("../fonts/chakra-petch/600.woff2") format("woff2");
+  src: url("/fonts/chakra-petch/600.woff2") format("woff2");
   font-weight: 600;
   font-display: swap;
 }
 @font-face {
   font-family: "Chakra Petch";
-  src: url("../fonts/chakra-petch/700.woff2") format("woff2");
+  src: url("/fonts/chakra-petch/700.woff2") format("woff2");
   font-weight: 700;
   font-display: swap;
 }
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../fonts/ibm-plex-mono/400.woff2") format("woff2");
+  src: url("/fonts/ibm-plex-mono/400.woff2") format("woff2");
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../fonts/ibm-plex-mono/500.woff2") format("woff2");
+  src: url("/fonts/ibm-plex-mono/500.woff2") format("woff2");
   font-weight: 500;
   font-display: swap;
 }
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../fonts/ibm-plex-mono/600.woff2") format("woff2");
+  src: url("/fonts/ibm-plex-mono/600.woff2") format("woff2");
   font-weight: 600;
   font-display: swap;
 }
@@ -114,8 +114,8 @@ canvas { display: block; }
   width: 2rem;
   flex: 0 0 auto;
   background: #e9a23b;
-  -webkit-mask: url('../icons/seal.svg') center / contain no-repeat;
-  mask: url('../icons/seal.svg') center / contain no-repeat;
+  -webkit-mask: url('/icons/seal.svg') center / contain no-repeat;
+  mask: url('/icons/seal.svg') center / contain no-repeat;
 }
 
 .hero { align-self: center; width: min(100%, 54rem); padding: clamp(2.4rem, 7vh, 6rem) 1rem clamp(2.5rem, 7vh, 6rem) var(--gutter); }

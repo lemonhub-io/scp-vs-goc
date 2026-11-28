@@ -1,21 +1,13 @@
-/* Generated service worker from src/worker/sw.ts. Edit the TypeScript source. */
-
-// Bump the release whenever a cached file changes. Keep each installation isolated by scope.
+// Filled from the production build so each release preloads its own complete asset set.
+declare const __SITE109_REVISION__: string;
+declare const __SITE109_ASSETS__: readonly string[];
 // The browser registers this script as a service worker. TypeScript's self covers all worker kinds.
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const scope = worker.registration.scope;
 const prefix = 'site109-offline:' + encodeURIComponent(scope) + ':';
-const cacheName = prefix + '8';
+const cacheName = prefix + __SITE109_REVISION__;
 const entry = new URL('index.html', scope).href;
-const assets = new Set([
-  'index.html', 'manifest.webmanifest', 'css/main.css',
-  'js/core.js', 'js/data.js', 'js/i18n.js', 'js/pwa.js', 'js/audio.js', 'js/input.js',
-  'js/map.js', 'js/fx.js', 'js/game.js', 'js/combat.js', 'js/enemy-ai.js', 'js/threats.js',
-  'js/art.js', 'js/render.js', 'js/ui.js',
-  'icons/seal.svg', 'icons/favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'fonts/chakra-petch/500.woff2', 'fonts/chakra-petch/600.woff2', 'fonts/chakra-petch/700.woff2',
-  'fonts/ibm-plex-mono/400.woff2', 'fonts/ibm-plex-mono/500.woff2', 'fonts/ibm-plex-mono/600.woff2',
-].map(path => new URL(path, scope).href));
+const assets = new Set(__SITE109_ASSETS__.map(path => new URL(path, scope).href));
 
 worker.addEventListener('install', event => {
   event.waitUntil((async () => {
