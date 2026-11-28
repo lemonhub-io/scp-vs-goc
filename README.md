@@ -4,7 +4,7 @@ A top-down shooter set in the SCP Foundation universe. Global Occult Coalition s
 
 ## Play
 
-No build step. Open `index.html` in a modern browser, or serve the folder with any static server (for example `python3 -m http.server`).
+No build step is needed to play. Open `index.html` in a modern browser, or serve the folder with any static server (for example `python3 -m http.server`).
 
 - WASD move, mouse aim, left click fire
 - Space dash, R reload, 1 to 6 or wheel switch weapons
@@ -26,11 +26,15 @@ Coalition troops investigate gunfire and share sightings with nearby units. Brea
 
 ## Code
 
-Plain scripts sharing one `G` namespace, loaded in order from `index.html`:
-`core` `data` `i18n` `pwa` `audio` `input` `map` `fx` `game` `combat` `enemy-ai` `threats` `art` `render` `ui`.
+The browser loads classic scripts in the order listed in `index.html`. They share the `G` namespace, so a module can move to TypeScript without changing its script URL or requiring a web server for local play.
+
+Edit `src/` for the migrated math, settings, game data, translations, PWA, audio, input and map modules. Their generated files in `js/` and the generated root `sw.js` are committed for static hosting. The remaining gameplay, effects, rendering and UI modules are still authored in `js/`.
+
+Use `npm ci` to install the pinned TypeScript compiler, `npm run typecheck` to check the migrated modules and service worker with `strict` enabled, and `npm run build` to regenerate the browser scripts. Commit generated output together with its source. The service worker has its own TypeScript config for the browser's worker APIs.
+
 Game art and sound are generated at runtime except for the bundled official SCP Foundation logo.
 
-For static hosting, deploy the whole directory together. The manifest and service worker use relative paths so the game can also live under a project subdirectory. When releasing changes to cached assets, bump the release in `sw.js` and add any new runtime files to its asset list.
+For static hosting, publish the runtime files together. The manifest and service worker use relative paths so the game can also live under a project subdirectory. When releasing changes to cached assets, bump the release in `src/worker/sw.ts`, update its asset list when adding runtime files, and regenerate `sw.js`.
 
 ## License
 
