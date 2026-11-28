@@ -3,10 +3,59 @@
 G.audio = (function () {
   const A = { listener: { x: 0, y: 0 } };
   let ctx, master, sfx, music, ui, verb, verbSend, noiseBuf;
-  const last = {};
+  let last = {};
   const STARTUP_WINDOW = 250;
+  // iPad can present a desktop Safari user agent even in a Home Screen app.
+  const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const homeScreen = navigator.standalone === true ||
+    (appleMobile && window.matchMedia('(display-mode: standalone)').matches);
   let resumeAt = -Infinity;
   let pendingSounds = [];
+  let outputCheck = 0, rebuildOnInput = false, primeAt = -Infinity;
+
+  function setPlaybackSession(active) {
+    const session = homeScreen && navigator.audioSession;
+    if (!session) return;
+    const { master, sfx, music } = G.settings;
+    const type = active && master > 0 && (sfx > 0 || music > 0) ? 'playback' : 'auto';
+    // Web Audio defaults to ambient on iPadOS, which can be silenced by the system.
+    try { if (session.type !== type) session.type = type; } catch { /* optional Safari API */ }
+  }
+
+  function checkOutputClock(context) {
+    if (!homeScreen || outputCheck) return;
+    const time = context.currentTime;
+    outputCheck = setTimeout(() => {
+      outputCheck = 0;
+      if (ctx !== context || document.hidden) return;
+      // WebKit can report running even when the rendering clock has stopped.
+      rebuildOnInput = context.state !== 'running' || context.currentTime <= time;
+    }, 450);
+  }
+
+  function primeOutput() {
+    const now = performance.now();
+    if (!homeScreen || now - primeAt < 100) return;
+    primeAt = now;
+    const source = ctx.createBufferSource();
+    source.buffer = ctx.createBuffer(1, 128, ctx.sampleRate);
+    source.connect(ctx.destination);
+    source.onended = () => source.disconnect();
+    source.start();
+  }
+
+  function replaceContext() {
+    const old = ctx;
+    ctx = null;
+    siren = null;
+    last = {};
+    primeAt = -Infinity;
+    rebuildOnInput = false;
+    clearTimeout(outputCheck);
+    outputCheck = 0;
+    if (old.state !== 'closed') old.close().catch(() => {});
+  }
 
   function flushPending() {
     if (document.hidden || ctx.state !== 'running') return;
@@ -20,20 +69,30 @@ G.audio = (function () {
 
   function resume(force = false) {
     if (!ctx || ctx.state === 'closed' || document.hidden) return;
+    setPlaybackSession(true);
+    checkOutputClock(ctx);
     if (ctx.state === 'running' && !force) return;
     resumeAt = performance.now();
     pendingSounds = pendingSounds.filter(sound => resumeAt - sound.at <= STARTUP_WINDOW);
     // Call synchronously so a pointer or key event can authorize playback.
-    ctx.resume().then(flushPending, () => { /* retry on the next interaction */ });
+    const context = ctx;
+    context.resume().then(() => { if (ctx === context) flushPending(); }, () => { /* retry on input */ });
   }
 
-  A.init = function () {
+  A.init = function (trusted = false) {
     if (document.hidden) return;
-    if (ctx) { resume(); return; }
+    if (trusted && ctx && (rebuildOnInput || ctx.state === 'closed')) replaceContext();
+    if (ctx) {
+      if (trusted && ctx.state !== 'running') primeOutput();
+      resume();
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    setPlaybackSession(true);
     try { ctx = new AC(); } catch { return; }
-    ctx.addEventListener('statechange', flushPending);
+    const context = ctx;
+    context.addEventListener('statechange', () => { if (ctx === context) flushPending(); });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 5;
     comp.attack.value = 0.004; comp.release.value = 0.2;
@@ -57,12 +116,15 @@ G.audio = (function () {
     verbSend = ctx.createGain(); verbSend.gain.value = 0.22;
     verbSend.connect(verb); verb.connect(sfx);
     A.setVolumes(true);
+    if (trusted) primeOutput();
     startMusic();
+    if (sirenWanted) A.siren(true);
     resume(true);
   };
 
   A.setVolumes = function (initial = false) {
     if (!ctx) return;
+    setPlaybackSession(!document.hidden);
     const s = G.settings;
     const volume = (node, value) => {
       if (initial) node.gain.value = value;
@@ -78,18 +140,20 @@ G.audio = (function () {
     if (!event.isTrusted || event.repeat) return;
     if (event.type === 'pointerdown' && event.pointerType !== 'mouse') return;
     if (event.type === 'pointerup' && event.pointerType === 'mouse') return;
-    A.init();
+    A.init(true);
   }
 
   for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
     document.addEventListener(type, unlockOnInput, { capture: true, passive: true });
   }
-  if (!window.PointerEvent) document.addEventListener('touchend', unlockOnInput, { capture: true, passive: true });
+  document.addEventListener('touchend', unlockOnInput, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => {
-    if (!ctx || ctx.state === 'closed') return;
     if (document.hidden) {
       pendingSounds = [];
-      ctx.suspend().catch(() => {});
+      clearTimeout(outputCheck);
+      outputCheck = 0;
+      if (ctx && ctx.state !== 'closed') ctx.suspend().catch(() => {});
+      setPlaybackSession(false);
     } else {
       // Request resume even if the earlier suspend is still taking effect.
       resume(true);
@@ -227,8 +291,9 @@ G.audio = (function () {
   };
 
   /* Alarm siren */
-  let siren = null;
+  let siren = null, sirenWanted = false;
   A.siren = function (on) {
+    sirenWanted = on;
     if (!ctx) return;
     if (on && !siren) {
       const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 700;
@@ -254,9 +319,11 @@ G.audio = (function () {
   const PROG = [0, 0, -4, -5]; // Am Am F E
   const CHORD = [[0, 3, 7], [0, 3, 7], [0, 4, 7], [0, 4, 7]];
   const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
-  let padFilter, padGain, mDelay;
+  let padFilter, padGain, mDelay, musicTimer;
 
   function startMusic() {
+    M.pad = [];
+    M.bar = -1;
     padFilter = ctx.createBiquadFilter(); padFilter.type = 'lowpass'; padFilter.frequency.value = 420; padFilter.Q.value = 0.6;
     padGain = ctx.createGain(); padGain.gain.value = 0.0001;
     padFilter.connect(padGain); padGain.connect(music);
@@ -278,13 +345,13 @@ G.audio = (function () {
     const dl = ctx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 2400;
     mDelay.connect(dl); dl.connect(fb); fb.connect(mDelay); dl.connect(music);
     M.next = ctx.currentTime + 0.1;
-    setInterval(schedule, 25);
+    if (!musicTimer) musicTimer = setInterval(schedule, 25);
   }
 
   A.setMusic = function (level) { M.level = level; };
 
   function schedule() {
-    if (document.hidden || ctx.state !== 'running') return;
+    if (!ctx || document.hidden || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     if (M.next < now) {
       const missed = Math.ceil((now - M.next) / STEP);
