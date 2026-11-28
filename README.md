@@ -28,9 +28,9 @@ Coalition troops investigate gunfire and share sightings with nearby units. Brea
 
 The browser loads classic scripts in the order listed in `index.html`. They share the `G` namespace, so a module can move to TypeScript without changing its script URL or requiring a web server for local play.
 
-Edit `src/` for the migrated math, settings, game data, translations, PWA, audio, input and map modules. Their generated files in `js/` and the generated root `sw.js` are committed for static hosting. The remaining gameplay, effects, rendering and UI modules are still authored in `js/`.
+All game scripts are authored in strict TypeScript in `src/`. The generated files in `js/` and the generated root `sw.js` are committed for static hosting.
 
-Use `npm ci` to install the pinned TypeScript compiler, `npm run typecheck` to check the migrated modules and service worker with `strict` enabled, and `npm run build` to regenerate the browser scripts. Commit generated output together with its source. The service worker has its own TypeScript config for the browser's worker APIs.
+Use `npm ci` to install the pinned TypeScript compiler, `npm run typecheck` to check the game and service worker with `strict` enabled, and `npm run build` to regenerate the browser scripts. Commit generated output together with its source. The service worker has its own TypeScript config for the browser's worker APIs.
 
 Game art and sound are generated at runtime except for the bundled official SCP Foundation logo.
 

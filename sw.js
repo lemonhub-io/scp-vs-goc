@@ -5,7 +5,7 @@
 const worker = self;
 const scope = worker.registration.scope;
 const prefix = 'site109-offline:' + encodeURIComponent(scope) + ':';
-const cacheName = prefix + '7';
+const cacheName = prefix + '8';
 const entry = new URL('index.html', scope).href;
 const assets = new Set([
     'index.html', 'manifest.webmanifest', 'css/main.css',

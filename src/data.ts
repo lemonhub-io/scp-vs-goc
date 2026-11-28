@@ -9,8 +9,9 @@ namespace G {
     hp: number; dmg: number; count: number; reward: number; charge: number; score: number; fuse: number;
   }
 
+  export type WeaponId = 'p9' | 'k17' | 'b12' | 'lmg' | 'tesla' | 'lance';
   interface WeaponBase {
-    id: string; dmg: number; rate: number; mag: number; reserve: number; reload: number;
+    id: WeaponId; dmg: number; rate: number; mag: number; reserve: number; reload: number;
     spread: number; pellets: number; speed: number; knock: number; recoil: number;
     shake: number; sound: string; cost: number; color: string; len: number;
     moveMul?: number; falloff?: number;

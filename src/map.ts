@@ -8,7 +8,7 @@ namespace G {
   }
   interface MapProp extends Point { w: number; h: number; type: number }
   interface MapLabel extends Point { t: string; s: number; rot?: number }
-  interface Lamp extends CollisionBody { color: string; i: number; flicker: boolean; poly: null; path?: Path2D }
+  interface Lamp extends CollisionBody { color: string; i: number; flicker: boolean; poly: null; path?: Path2D; grad?: CanvasGradient | null }
   type WallRun = [x: number, y: number, w: number, h: number];
   type WallEdge = [axis: 'h' | 'v', line: number, start: number, end: number, side: number];
   type TileQuery = (x: number, y: number) => boolean;

@@ -66,8 +66,8 @@ var G;
         t = G.clamp(t, 0, 1);
         return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
     };
-    function canvasContext(canvas) {
-        const context = canvas.getContext('2d');
+    function canvasContext(canvas, options) {
+        const context = canvas.getContext('2d', options);
         if (!context)
             throw new Error('Canvas 2D is unavailable');
         return context;

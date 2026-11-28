@@ -63,8 +63,8 @@ namespace G {
     return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
   };
 
-  export function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-    const context = canvas.getContext('2d');
+  export function canvasContext(canvas: HTMLCanvasElement, options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D {
+    const context = canvas.getContext('2d', options);
     if (!context) throw new Error('Canvas 2D is unavailable');
     return context;
   }
