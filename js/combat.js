@@ -42,6 +42,7 @@ Object.assign(G.Operation.prototype, {
     if (e.ward > 0 && !piercing) damage *= 0.55;
     e.hp -= damage;
     e.hit = 0.11;
+    if (e.ai) e.ai.pressureUntil = this.time + 0.85;
     if (knock && !e.boss) G.map.move(e, Math.cos(angle) * knock * 0.045, Math.sin(angle) * knock * 0.045, e.type === 'drone');
     if (G.settings.dmgNums) this.popup(e.x + G.rand(-6, 6), e.y - e.r - 8, Math.round(damage), weak ? '#ffb070' : '#f2efe4', weak || damage >= 100);
     const metal = e.type === 'drone' || e.type === 'exo' || e.type === 'pylon';
@@ -108,6 +109,7 @@ Object.assign(G.Operation.prototype, {
     slot.mag--;
     slot.cd = 1 / (w.rate * (p.cola ? 1.32 : 1));
     this.shots++;
+    this.enemyNoise = { x: p.x, y: p.y, at: this.time };
     p.flash = 0.075;
     p.kick = 1;
     this.shake = Math.max(this.shake, w.shake * 1.4);

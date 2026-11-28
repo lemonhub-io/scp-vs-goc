@@ -1,5 +1,7 @@
 'use strict';
 
+const enemyRanges = { trooper: 270, breacher: 145, sapper: 220, marksman: 470, shield: 200, adept: 330, exo: 355, archon: 300 };
+
 Object.assign(G.Operation.prototype, {
   spawn(type, point, options = {}) {
     const def = G.ENEMY[type];
@@ -11,6 +13,7 @@ Object.assign(G.Operation.prototype, {
       const fixed = G.map.collide(e.x, e.y, e.r);
       e.x = fixed.x; e.y = fixed.y;
     }
+    if (type !== 'zombie' && type !== 'pylon') e.ai = this.makeEnemyMind(e);
     this.enemies.push(e);
     this.fx('ring', e.x, e.y, { radius: e.r * 2.3, color: e.boss ? '#ff9a4a' : '#5cc6ff', duration: 0.6 });
     if (e.boss) {
@@ -55,20 +58,26 @@ Object.assign(G.Operation.prototype, {
     e.flash = Math.max(0, (e.flash || 0) - dt);
     if ((e.grace -= dt) > 0 || e.type === 'pylon' || this.phase !== 'combat') return;
     const p = this.player;
-    const distance = G.dist(e.x, e.y, p.x, p.y), angle = Math.atan2(p.y - e.y, p.x - e.x);
-    const sight = G.map.trace(e.x, e.y, p.x, p.y) === 1;
     e.cd -= dt;
+    const distance = G.dist(e.x, e.y, p.x, p.y);
+    const range = enemyRanges[e.type];
+    const sight = e.ai && this.enemySight(e, p, distance);
+    if (e.ai) this.thinkEnemy(e, distance, sight, range);
+    const ai = e.ai;
+    const visible = sight && ai.visible;
+    const angle = visible ? Math.atan2(p.y - e.y, p.x - e.x) : e.angle;
     if (e.type === 'drone') {
-      e.angle = G.turnTo(e.angle, angle, dt * 9);
-      if (distance < 70 || e.armed > 0) {
+      const goal = visible ? p : ai.goal;
+      if (goal) e.angle = G.turnTo(e.angle, Math.atan2(goal.y - e.y, goal.x - e.x), dt * 9);
+      if ((visible && distance < 70) || e.armed > 0) {
         if (!e.armed) G.audio.play('beep', e);
         e.armed = (e.armed || 0) + dt;
-        this.steer(e, e.angle, dt, 0.45, true);
+        this.steer(e, e.angle, dt, 0.45);
         if (e.armed > 0.42) {
           e.dead = true;
           this.explode(e.x, e.y, 64, 26, 'hostile');
         }
-      } else this.steer(e, e.angle + Math.sin(this.time * 3 + e.swing) * 0.5, dt, 1, true);
+      } else if (goal) this.steer(e, e.angle + Math.sin(this.time * 3 + e.swing) * 0.5, dt, 1, true);
       return;
     }
     if (e.type === 'zombie') {
@@ -76,7 +85,8 @@ Object.assign(G.Operation.prototype, {
         .reduce((nearest, o) => G.dist2(e.x, e.y, o.x, o.y) < G.dist2(e.x, e.y, nearest.x, nearest.y) ? o : nearest, p);
       e.angle = G.map.direction(e, target.x, target.y);
       e.step += dt * 4;
-      if (G.dist(e.x, e.y, target.x, target.y) > e.r + target.r + 6) this.steer(e, e.angle, dt);
+      if (G.dist(e.x, e.y, target.x, target.y) > e.r + target.r + 6 ||
+        G.map.trace(e.x, e.y, target.x, target.y) < 1) this.steer(e, e.angle, dt);
       else if (e.cd <= 0) {
         e.cd = 0.8;
         if (target === p) this.damage(20, e.x, e.y);
@@ -84,40 +94,54 @@ Object.assign(G.Operation.prototype, {
       }
       return;
     }
-    if (e.type === 'sapper' && this.sapper(e, dt)) return;
-    if (e.type === 'archon' && !e.warded && e.wards < 2 && e.hp / e.max < (e.wards ? 0.33 : 0.68)) this.castWard(e);
-    if (e.type === 'exo' && this.exoSpecial(e, dt, distance, angle, sight)) return;
-    const ranges = { trooper: 270, breacher: 145, sapper: 220, marksman: 470, shield: 200, adept: 330, exo: 355, archon: 300 };
-    const range = ranges[e.type];
-    e.angle = G.turnTo(e.angle, sight ? angle : G.map.direction(e, p.x, p.y), dt * (e.type === 'exo' ? 1.75 : 7));
-
-    if (e.lock > 0) {
-      e.lock -= dt;
-      if (e.lock <= 0) {
-        if (sight) this.volley(e, e.lockAngle, 1, 0, 1860, 46, 'sniper', { len: 45, color: '#ff5973' });
-        e.cd = 2.25;
-      } else if (e.lock > 0.23) e.lockAngle = angle;
+    if (ai.mode === 'evade') {
+      if (e.lock > 0) { e.lock = 0; e.cd = 0.65; }
+      e.planting = 0;
+      this.moveEnemyTo(e, ai.goal, dt, angle, visible);
       return;
     }
-    if (!sight || distance > range * 1.05) this.steer(e, G.map.direction(e, p.x, p.y), dt);
-    else if (distance < range * 0.57 && e.type !== 'shield' && e.type !== 'exo') this.steer(e, angle + Math.PI, dt, 0.55);
-    else if (e.type !== 'exo' && e.type !== 'archon') this.steer(e, angle + e.swing * Math.PI / 2, dt, 0.34);
-    if (!sight || distance > range * 1.45 || e.cd > 0 || Math.abs(G.angDiff(e.angle, angle)) > 0.38) return;
+    if (e.type === 'sapper' && this.sapper(e, dt)) return;
+    if (e.type === 'archon' && !e.warded && e.wards < 2 && this.time >= (e.wardRetryAt || 0) &&
+      e.hp / e.max < (e.wards ? 0.33 : 0.68)) this.castWard(e);
+    const ready = visible && this.time >= ai.readyAt;
+    if (e.type === 'exo' && this.exoSpecial(e, dt, distance, Math.atan2(p.y - e.y, p.x - e.x), ready)) return;
+
+    if (e.lock > 0) {
+      const tracking = e.lock > 0.23;
+      if (tracking && !visible) {
+        e.lock = 0;
+        e.cd = 0.65;
+        return;
+      }
+      if (tracking) e.lockAngle = this.enemyAim(e, p, 1860, distance);
+      e.angle = G.turnTo(e.angle, e.lockAngle, dt * 7);
+      e.lock -= dt;
+      if (e.lock <= 0) {
+        this.volley(e, e.lockAngle, 1, 0, 1860, 46, 'sniper', { len: 45, color: '#ff5973' });
+        e.cd = 2.25;
+        ai.nextThink = this.time;
+      }
+      return;
+    }
+    const goal = e.boss && visible ? (distance > range ? p : null) : ai.goal;
+    this.moveEnemyTo(e, goal, dt, angle, visible);
+    if (!ready || distance > range * 1.45 || e.cd > 0 || Math.abs(G.angDiff(e.angle, angle)) > 0.38 ||
+      !this.enemySight(e, p, distance)) return;
+    const direct = Math.atan2(p.y - e.y, p.x - e.x);
 
     switch (e.type) {
       case 'breacher':
-        this.volley(e, angle, 6, 0.56, 600, 8, 'eshotgun', { life: 0.62 });
+        this.volley(e, this.enemyAim(e, p, 600, distance), 6, 0.56, 600, 8, 'eshotgun', { life: 0.62 });
         e.cd = 1.52;
         break;
       case 'marksman':
         e.lock = 0.86;
-        e.lockAngle = angle;
+        e.lockAngle = this.enemyAim(e, p, 1860, distance);
         G.audio.play('beep', e);
         break;
       case 'adept':
         if (distance < 155 && this.blink(e, p, 160)) { e.cd = 0.7; break; }
-        this.volley(e, angle, 1, 0.12, 223, 25, 'orb', { life: 3, homing: 1.35, color: '#8ae6ff' });
-        for (const o of this.enemies) if (o !== e && !o.dead && G.dist(e.x, e.y, o.x, o.y) < 175) o.ward = 2.6;
+        this.volley(e, direct, 1, 0.12, 223, 25, 'orb', { life: 3, homing: 1.35, color: '#8ae6ff' });
         e.cd = 1.7;
         break;
       case 'archon':
@@ -135,7 +159,7 @@ Object.assign(G.Operation.prototype, {
           G.audio.play('wardon', e);
           e.cd = 1.4;
         } else {
-          this.volley(e, angle, e.warded ? 3 : 5, e.warded ? 0.7 : 1.1, 275, 24, 'orb',
+          this.volley(e, direct, e.warded ? 3 : 5, e.warded ? 0.7 : 1.1, 275, 24, 'orb',
             { life: 3.15, homing: 0.82, color: '#8ae6ff' });
           e.cd = e.warded ? 1.44 : 1.03;
         }
@@ -143,36 +167,44 @@ Object.assign(G.Operation.prototype, {
       case 'exo':
         e.burst = (e.burst || 0) + 1;
         if (e.burst >= 9) {
-          this.volley(e, angle, 3, 0.52, 435, 38, 'missile', { life: 1.75, homing: 0.8, blast: 64, color: '#ffc17d' });
+          this.volley(e, direct, 3, 0.52, 435, 38, 'missile', { life: 1.75, homing: 0.8, blast: 64, color: '#ffc17d' });
           e.burst = 0;
           e.cd = 1.12;
         } else {
-          this.volley(e, angle, 1, 0.17, 890, 10, 'minigun');
+          this.volley(e, this.enemyAim(e, p, 890, distance), 1, 0.17, 890, 10, 'minigun');
           e.spin = (e.spin || 0) + 1.3;
           e.cd = 0.115;
         }
         break;
       default:
         e.burst = (e.burst || 0) + 1;
-        this.volley(e, angle, 1, 0.1, 670, e.type === 'shield' ? 13 : 11, 'enemy');
+        this.volley(e, this.enemyAim(e, p, 670, distance), 1, 0.1, 670, e.type === 'shield' ? 13 : 11, 'enemy');
         if (e.burst < 3 && e.type === 'trooper') e.cd = 0.16;
         else { e.burst = 0; e.cd = G.rand(0.98, 1.45); }
     }
   },
 
+  moveEnemyTo(e, goal, dt, aim, visible) {
+    const remaining = goal ? G.dist(e.x, e.y, goal.x, goal.y) : 0;
+    const moving = remaining > 12;
+    const heading = moving ? G.map.direction(e, goal.x, goal.y) : e.angle;
+    e.angle = G.turnTo(e.angle, visible ? aim : heading, dt * (e.type === 'exo' ? 1.75 : 7));
+    if (!moving) return;
+    const pace = e.ai.mode === 'cover' || e.ai.mode === 'evade' || !visible ? 1 : e.type === 'shield' ? 0.93 : 0.78;
+    this.steer(e, heading, dt, pace);
+  },
+
   sapper(e, dt) {
-    const options = this.cells.filter(c => c.hp > 0 && !c.charge);
-    if (!options.length) return false;
-    if (!options.includes(e.target)) {
+    if (e.target && (e.target.hp <= 0 || e.target.charge)) {
+      e.target = null;
       e.planting = 0;
-      e.target = options.reduce((best, c) => {
-        const priority = a => G.dist2(e.x, e.y, a.x, a.padY) + this.enemies.filter(o => o !== e && o.target === a && !o.dead).length * 42000;
-        return priority(c) < priority(best) ? c : best;
-      });
+      e.ai.nextThink = this.time;
     }
+    if (!e.target) return false;
     const c = e.target, angle = G.map.direction(e, c.x, c.padY);
     e.angle = G.turnTo(e.angle, angle, dt * 8);
-    if (G.dist(e.x, e.y, c.x, c.padY) > 26) {
+    if (G.dist(e.x, e.y, c.x, c.padY) > 26 || G.map.trace(e.x, e.y, c.x, c.padY) < 1) {
+      e.planting = 0;
       this.steer(e, angle, dt);
       return true;
     }
@@ -188,6 +220,7 @@ Object.assign(G.Operation.prototype, {
       e.target = null;
       e.planting = 0;
       e.cd = 0.45;
+      e.ai.nextThink = this.time;
     }
     return true;
   },
@@ -209,7 +242,6 @@ Object.assign(G.Operation.prototype, {
   },
 
   castWard(e) {
-    e.wards++;
     const positions = [];
     for (const radius of [132, 200, 92]) {
       for (let i = 0; i < 8 && positions.length < 2; i++) {
@@ -220,8 +252,10 @@ Object.assign(G.Operation.prototype, {
         positions.push({ x, y });
       }
     }
+    if (!positions.length) { e.wardRetryAt = this.time + 1; return; }
+    e.wards++;
     for (const position of positions) this.spawn('pylon', position);
-    e.warded = positions.length > 0;
+    e.warded = true;
     e.cd = 0.7;
     G.audio.play('wardon', e);
   },
@@ -302,7 +336,7 @@ Object.assign(G.Operation.prototype, {
         G.fx.dust(e.x, e.y, 16, '#6d7278');
         G.audio.play('servo', e);
         this.shake = Math.max(this.shake, 0.7);
-        if (distance < 165) {
+        if (distance < 165 && G.map.trace(e.x, e.y, p.x, p.y) === 1) {
           this.damage(32, e.x, e.y);
           G.map.move(p, Math.cos(angle) * 60, Math.sin(angle) * 60);
         }
@@ -319,8 +353,14 @@ Object.assign(G.Operation.prototype, {
       return true;
     }
     const n = e.hp / e.max < 0.5 ? 7 : 5;
+    const predicted = {
+      x: p.x + G.clamp((p.vx || 0) * 0.46, -112, 112),
+      y: p.y + G.clamp((p.vy || 0) * 0.46, -112, 112),
+    };
+    const center = G.map.open(predicted.x, predicted.y, p.r) &&
+      G.map.trace(p.x, p.y, predicted.x, predicted.y, p.r) === 1 ? predicted : p;
     for (let i = 0; i < n; i++) {
-      const spot = i === 0 ? { x: p.x, y: p.y } : { x: p.x + G.rand(-150, 150), y: p.y + G.rand(-150, 150) };
+      const spot = i === 0 ? center : G.map.randomFloorNear(center.x, center.y, 58, 152, true) || p;
       const delay = 1.0 + i * 0.12;
       const sx = e.x + Math.cos(e.angle - Math.PI / 2) * 30, sy = e.y + Math.sin(e.angle - Math.PI / 2) * 30;
       const d = G.dist(sx, sy, spot.x, spot.y);

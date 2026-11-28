@@ -22,10 +22,12 @@ New releases download in the background. Choose **Update game** in the main menu
 
 Sappers plant demolition charges on the blast doors. Two detonations breach a cell and release its anomaly, which hunts both sides until the cell is reinforced in the armory. Lose all three cells, or your operative, and the site is lost. Survive ten waves to secure it, or keep going in Endless protocol.
 
+Coalition troops investigate gunfire and share sightings with nearby units. Break line of sight and change position to slip their search. Breachers move around the front line, shields escort sappers, and adepts protect nearby allies. Sappers favor weak or lightly defended cells. Higher difficulties shorten enemy reaction times and improve their aim against moving targets.
+
 ## Code
 
 Plain scripts sharing one `G` namespace, loaded in order from `index.html`:
-`core` `data` `i18n` `audio` `input` `map` `fx` `game` `combat` `threats` `art` `render` `ui`.
+`core` `data` `i18n` `pwa` `audio` `input` `map` `fx` `game` `combat` `enemy-ai` `threats` `art` `render` `ui`.
 Game art and sound are generated at runtime except for the bundled official SCP Foundation logo.
 
 For static hosting, deploy the whole directory together. The manifest and service worker use relative paths so the game can also live under a project subdirectory. When releasing changes to cached assets, bump the release in `sw.js` and add any new runtime files to its asset list.

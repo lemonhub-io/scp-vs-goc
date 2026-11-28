@@ -242,7 +242,8 @@ G.map = (function () {
         if (!pass(nx, ny)) continue;
         if (ox && oy && (!pass(x + ox, y) || !pass(x, y + oy))) continue;
         const ni = idx(nx, ny);
-        const nd = d + c + (large ? 0 : penalty[ni]);
+        // Compare the same precision stored in the field when discarding stale heap entries.
+        const nd = Math.fround(d + c + (large ? 0 : penalty[ni]));
         if (nd < dist[ni]) { dist[ni] = nd; push(nd, ni); }
       }
     }
@@ -661,21 +662,31 @@ G.map = (function () {
     return baseMove(unit, dx, dy);
   };
 
-  let routes = new Map();
-  M.direction = function (unit, x, y) {
-    const straight = Math.atan2(y - unit.y, x - unit.x);
-    if (M.trace(unit.x, unit.y, x, y, unit.r + 1) === 1) return straight;
-    if (M.dirty) { routes = new Map(); M.dirty = false; }
+  const routes = new Map();
+  function routeField(x, y, large) {
+    if (M.dirty) { routes.clear(); buildPenalty(); M.dirty = false; }
     const gx = G.clamp(Math.floor(x / T), 0, W - 1), gy = G.clamp(Math.floor(y / T), 0, H - 1);
-    let large = unit.r > 19 && M.large(Math.floor(unit.x / T), Math.floor(unit.y / T));
     const key = (gy * W + gx) * 2 + (large ? 1 : 0);
     let field = routes.get(key);
     if (!field) {
-      if (routes.size > 48) routes = new Map();
-      field = M.field([{ x, y }], large);
+      if (routes.size >= 48) routes.delete(routes.keys().next().value);
+      field = M.field([{ x: (gx + 0.5) * T, y: (gy + 0.5) * T }], large);
       routes.set(key, field);
     }
-    const dir = M.fieldDir(field, unit.x, unit.y, large);
+    return field;
+  }
+  M.routeCost = function (unit, x, y) {
+    if (M.trace(unit.x, unit.y, x, y, unit.r + 1) === 1) return G.dist(unit.x, unit.y, x, y);
+    return M.fieldValue(routeField(x, y, false), unit.x, unit.y) * T;
+  };
+  M.direction = function (unit, x, y) {
+    const straight = Math.atan2(y - unit.y, x - unit.x);
+    if (M.trace(unit.x, unit.y, x, y, unit.r + 1) === 1) return straight;
+    let dir;
+    if (unit.r > 19 && M.large(Math.floor(unit.x / T), Math.floor(unit.y / T))) {
+      dir = M.fieldDir(routeField(x, y, true), unit.x, unit.y, true);
+    }
+    if (!dir) dir = M.fieldDir(routeField(x, y, false), unit.x, unit.y, false);
     return dir ? Math.atan2(dir.y, dir.x) : straight;
   };
 

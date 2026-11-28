@@ -58,6 +58,7 @@ G.Operation = class {
     this.phase = 'combat';
     this.clearIn = 0;
     this.waveTime = 0;
+    this.enemyNoise = null;
     this.marks.length = 0;
     this.waveKills = this.kills;
     this.waveShots = this.shots;
@@ -273,6 +274,7 @@ G.Operation = class {
       });
       this.spawnIn = Math.max(0.35, 1.04 - this.wave * 0.052);
     }
+    this.updateEnemyIntelligence();
     for (const e of this.enemies) if (!e.dead) this.updateEnemy(e, dt);
     for (const a of this.anomalies) this.updateAnomaly(a, dt);
     this.updateProjectiles(dt);
@@ -293,6 +295,7 @@ G.Operation = class {
 
   updatePlayer(dt, input) {
     const p = this.player;
+    const x = p.x, y = p.y;
     p.angle = Math.atan2(input.aimY - p.y, input.aimX - p.x);
     for (const timer of ['dash', 'dashTime', 'invulnerable', 'cola', 'flash', 'hit']) p[timer] = Math.max(0, p[timer] - dt);
     p.kick = Math.max(0, p.kick - dt * 9);
@@ -332,6 +335,8 @@ G.Operation = class {
     } else {
       G.map.move(p, input.mx / norm * speed * dt, input.my / norm * speed * dt);
     }
+    p.vx = dt > 0 ? (p.x - x) / dt : 0;
+    p.vy = dt > 0 ? (p.y - y) / dt : 0;
     p.step += Math.min(1, move) * dt * 12;
     if (move > 0.2) p.bloom = Math.min(0.09, p.bloom + dt * 0.05);
     if (input.reload) this.reload(w, arm);
